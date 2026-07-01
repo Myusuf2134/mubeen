@@ -1,0 +1,43 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mubeen
+      POSTGRES_USER: mubeen
+      POSTGRES_PASSWORD: mubeen
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mubeen -d mubeen"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mubeen:mubeen@db:5432/mubeen
+      DATABASE_URL_SYNC: postgresql://mubeen:mubeen@db:5432/mubeen
+      SECRET_KEY: dev-secret-key-change-in-production
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+      CORS_ORIGINS: '["http://localhost:5173","http://localhost:8000"]'
+    depends_on:
+      db:
+        condition: service_healthy
+    # Run migrations then start the server. --reload picks up src/ changes via the volume mount.
+    command: >
+      sh -c "uv run alembic upgrade head &&
+             uv run uvicorn mubeen.main:app --host 0.0.0.0 --port 8000 --reload"
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/alembic:/app/alembic
+      - ./backend/alembic.ini:/app/alembic.ini
+
+volumes:
+  postgres_data:

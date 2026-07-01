@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Environment — never commit real secrets
+.env
+!.env.example
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# uv lock — commit this in production, ignored here for dev flexibility
+# uv.lock
+
+# Local dev artifacts — not part of the app
+.claude/
+khutbah.mp3
+khutbah.nova-3.ar.json
+test_deepgram_arabic.py
