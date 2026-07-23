@@ -10,7 +10,7 @@ class SignupRequest(BaseModel):
 
     email: str
     password: str
-    masjid_id: UUID
+    masjid_id: UUID | None = None
 
     @field_validator("password")
     @classmethod
@@ -23,7 +23,7 @@ class SignupRequest(BaseModel):
 class SignupResponse(BaseModel):
     id: UUID
     email: str
-    masjid_id: UUID
+    masjid_id: UUID | None
 
 
 class LoginRequest(BaseModel):
@@ -41,4 +41,4 @@ class LoginResponse(BaseModel):
 class MeResponse(BaseModel):
     id: UUID
     email: str
-    masjid_id: UUID
+    masjid_id: UUID | None

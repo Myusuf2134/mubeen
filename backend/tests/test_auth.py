@@ -225,3 +225,57 @@ async def test_me_expired_token_returns_401(
         headers={"Authorization": f"Bearer {expired_token}"},
     )
     assert resp.status_code == 401
+
+
+# ── Masjid-less operator ──────────────────────────────────────────────────────
+
+
+async def test_signup_without_masjid_id_returns_201(client: AsyncClient) -> None:
+    resp = await client.post(
+        "/api/auth/signup",
+        json={"email": "nomasjid@example.com", "password": _PASSWORD},
+    )
+    assert resp.status_code == 201
+
+
+async def test_login_masjidless_operator_returns_valid_token(client: AsyncClient) -> None:
+    await client.post(
+        "/api/auth/signup",
+        json={"email": "nomasjid@example.com", "password": _PASSWORD},
+    )
+    resp = await _login(client, email="nomasjid@example.com")
+    assert resp.status_code == 200
+    assert resp.json().get("access_token")
+
+
+async def test_me_masjidless_operator_reports_no_masjid(client: AsyncClient) -> None:
+    await client.post(
+        "/api/auth/signup",
+        json={"email": "nomasjid@example.com", "password": _PASSWORD},
+    )
+    login_resp = await _login(client, email="nomasjid@example.com")
+    token = login_resp.json()["access_token"]
+    resp = await client.get(
+        "/api/admin/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["masjid_id"] is None
+
+
+async def test_null_masjid_token_rejected_by_verify_operator_for_masjid(
+    client: AsyncClient,
+    seed_masjid: Masjid,
+) -> None:
+    await client.post(
+        "/api/auth/signup",
+        json={"email": "nomasjid@example.com", "password": _PASSWORD},
+    )
+    login_resp = await _login(client, email="nomasjid@example.com")
+    token = login_resp.json()["access_token"]
+    resp = await client.put(
+        f"/api/masjids/{seed_masjid.id}/iqamah",
+        json={"iqamah_times": [{"prayer": "fajr", "fixed_time": "05:15:00"}]},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403

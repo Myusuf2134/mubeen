@@ -15,13 +15,13 @@ if TYPE_CHECKING:
 
 
 class OperatorAccount(Base):
-    """Login credential for an imam / AV volunteer, scoped to exactly one masjid."""
+    """Login credential for an imam / AV volunteer, optionally scoped to a masjid."""
 
     __tablename__ = "operator_accounts"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    masjid_id: Mapped[UUID] = mapped_column(
-        PGUUID(as_uuid=True), ForeignKey("masjids.id", ondelete="CASCADE"), nullable=False
+    masjid_id: Mapped[UUID | None] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("masjids.id", ondelete="SET NULL"), nullable=True
     )
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -31,4 +31,4 @@ class OperatorAccount(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    masjid: Mapped[Masjid] = relationship("Masjid", back_populates="operator_accounts")
+    masjid: Mapped[Masjid | None] = relationship("Masjid", back_populates="operator_accounts")

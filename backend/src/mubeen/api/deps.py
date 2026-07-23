@@ -24,14 +24,19 @@ _ALGORITHM = "HS256"
 _TOKEN_TTL_HOURS = 8
 
 
-def create_operator_token(operator_id: UUID, masjid_id: UUID) -> str:
-    """Sign a JWT scoped to one operator + masjid."""
+def create_operator_token(operator_id: UUID, masjid_id: UUID | None) -> str:
+    """Sign a JWT for an operator; masjid_id may be None for unassigned operators."""
     payload = {
         "operator_id": str(operator_id),
-        "masjid_id": str(masjid_id),
+        "masjid_id": str(masjid_id) if masjid_id is not None else None,
         "exp": datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=_TOKEN_TTL_HOURS),
     }
     return jwt.encode(payload, settings.secret_key, algorithm=_ALGORITHM)
+
+
+def issue_scoped_token(operator_id: UUID, masjid_id: UUID) -> str:
+    """Issue a masjid-scoped JWT; called after an operator is assigned to a masjid."""
+    return create_operator_token(operator_id, masjid_id)
 
 
 def verify_operator_for_masjid(
@@ -45,10 +50,26 @@ def verify_operator_for_masjid(
     """
     try:
         payload = jwt.decode(credentials.credentials, settings.secret_key, algorithms=[_ALGORITHM])
-        token_masjid_id = UUID(payload["masjid_id"])
+        raw_masjid_id = payload.get("masjid_id")
         operator_id = UUID(payload["operator_id"])
     except (jwt.InvalidTokenError, KeyError, ValueError) as exc:
         log.warning("invalid_operator_token", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+    if raw_masjid_id is None:
+        log.warning("operator_token_no_masjid", operator_id=str(operator_id))
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Token is not valid for this masjid",
+        )
+
+    try:
+        token_masjid_id = UUID(raw_masjid_id)
+    except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
