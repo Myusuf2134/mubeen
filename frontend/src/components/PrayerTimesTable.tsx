@@ -39,28 +39,43 @@ export function PrayerTimesTable({ adhanTimes, iqamahTimes }: Props) {
   const hasIqamah = iqamahTimes.length > 0;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-gray-200">
-      <table className="w-full text-sm">
+    <div className="overflow-hidden rounded-card border border-white/8">
+      <table className="w-full">
         <thead>
-          <tr className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
-            <th className="px-4 py-3">Prayer</th>
-            <th className="px-4 py-3">Adhan</th>
-            {hasIqamah && <th className="px-4 py-3">Iqamah</th>}
+          <tr
+            className="border-b border-white/8"
+            style={{ background: "rgba(255,255,255,0.04)" }}
+          >
+            <th className="px-4 py-3 text-left text-step--1 font-semibold uppercase tracking-caps text-ink-muted">
+              Prayer
+            </th>
+            <th className="px-4 py-3 text-left text-step--1 font-semibold uppercase tracking-caps text-ink-muted">
+              Adhan
+            </th>
+            {hasIqamah && (
+              <th className="px-4 py-3 text-left text-step--1 font-semibold uppercase tracking-caps text-ink-muted">
+                Iqamah
+              </th>
+            )}
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-100">
-          {PRAYER_ORDER.map((prayer) => {
+        <tbody>
+          {PRAYER_ORDER.map((prayer, i) => {
             const iq = iqamahByPrayer[prayer];
             return (
-              <tr key={prayer} className="bg-white hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-900">
+              <tr
+                key={prayer}
+                className="border-b border-white/5 last:border-0 transition-colors duration-150 hover:bg-white/4"
+                style={i % 2 === 1 ? { background: "rgba(255,255,255,0.02)" } : undefined}
+              >
+                <td className="px-4 py-3.5 font-sora font-semibold text-step--1 text-ink">
                   {PRAYER_LABELS[prayer]}
                 </td>
-                <td className="px-4 py-3 tabular-nums text-gray-700">
+                <td className="px-4 py-3.5 tabular-nums text-step--1 text-mint">
                   {formatAdhan(adhanTimes[prayer])}
                 </td>
                 {hasIqamah && (
-                  <td className="px-4 py-3 tabular-nums text-gray-600">
+                  <td className="px-4 py-3.5 tabular-nums text-step--1 text-ink-dim">
                     {iq ? formatIqamah(iq) : "—"}
                   </td>
                 )}

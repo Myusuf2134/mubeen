@@ -5,7 +5,7 @@ from uuid import UUID
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import Float, Integer, bindparam, delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -87,18 +87,24 @@ async def search_masjids(  # noqa: B008
 ) -> list[MasjidSummary]:
     """Search masjids by name, city, or proximity. Provide exactly one of: q, city, or lat+lon."""
     if lat is not None and lon is not None:
-        # Near-me: Haversine distance via parameterised SQL expression
+        # Near-me: Haversine distance via parameterised SQL expression.
+        # bindparams with explicit types are required by asyncpg's binary protocol.
+        # LEAST/GREATEST clamp prevents ASIN domain error from floating-point rounding.
         stmt = text("""
             SELECT id, name, city, state, country, lat, lon,
-                6371.0 * 2 * ASIN(SQRT(
+                6371.0 * 2 * ASIN(SQRT(LEAST(1.0, GREATEST(0.0,
                     POWER(SIN(RADIANS(lat - :lat) / 2), 2) +
                     COS(RADIANS(:lat)) * COS(RADIANS(lat)) *
                     POWER(SIN(RADIANS(lon - :lon) / 2), 2)
-                )) AS distance_km
+                )))) AS distance_km
             FROM masjids
             ORDER BY distance_km
             LIMIT :limit
-        """)
+        """).bindparams(
+            bindparam("lat", type_=Float()),
+            bindparam("lon", type_=Float()),
+            bindparam("limit", type_=Integer()),
+        )
         rows = (await db.execute(stmt, {"lat": lat, "lon": lon, "limit": limit})).mappings().all()
         return [MasjidSummary(**dict(r)) for r in rows]
 

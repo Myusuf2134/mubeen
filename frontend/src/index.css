@@ -1,3 +1,203 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ─── Design tokens ──────────────────────────────────────────────────────────
+   Extracted directly from docs/design-reference.html.
+   Hex values kept for use in raw CSS (gradients, glass effects).
+   Channel tuples (space-separated RGB) power Tailwind opacity modifiers.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Background layers */
+  --bg-0: #06120f;
+  --bg-1: #0a1a16;
+  --bg-2: #0f231d;
+
+  /* Glass surface */
+  --surface-bg: rgba(255, 255, 255, 0.04);
+  --surface-bd: rgba(255, 255, 255, 0.08);
+
+  /* Accent — hex for gradients, channels for Tailwind opacity modifiers */
+  --mint:       #5eead4;
+  --mint-ch:    94 234 212;
+  --mint-dim:   #2dd4bf;
+  --mint-dim-ch: 45 212 191;
+  --mint-deep:  #0d9488;
+  --mint-deep-ch: 13 148 136;
+  --gold:       #d4b06a;
+  --gold-ch:    212 176 106;
+
+  /* Text ramp */
+  --text-0: #f0faf7;
+  --text-1: #b9cbc5;
+  --text-2: #7c948c;
+
+  /* Modular type scale (major third, ~1.25×) — matches reference exactly */
+  --step--1: 0.8125rem;  /* 13 px */
+  --step-0:  1rem;        /* 16 px */
+  --step-1:  1.25rem;     /* 20 px */
+  --step-2:  1.5625rem;   /* 25 px */
+  --step-3:  1.953rem;    /* 31 px */
+  --step-4:  2.441rem;    /* 39 px */
+  --step-5:  3.052rem;    /* 49 px */
+  --step-6:  3.815rem;    /* 61 px */
+}
+
+/* ─── Base ───────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  background:
+    radial-gradient(ellipse 120% 80% at 50% -10%, #123028 0%, var(--bg-0) 55%),
+    var(--bg-0);
+  color: var(--text-0);
+  font-family: 'Inter', sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+h1, h2, h3 {
+  font-family: 'Sora', sans-serif;
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ─── Animations ────────────────────────────────────────────────────────── */
+@keyframes text-shimmer {
+  from { background-position: 0% center; }
+  to   { background-position: 200% center; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(var(--float-rotate, 0deg)); }
+  50%       { transform: translateY(-10px) rotate(var(--float-rotate, 0deg)); }
+}
+
+/* ─── Reduced-motion safety net ─────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── Component-layer utilities ─────────────────────────────────────────── */
+@layer components {
+  /* Glass card surface — matches reference .glass-card */
+  .glass {
+    background: var(--surface-bg);
+    border: 1px solid var(--surface-bd);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow:
+      0 20px 60px rgba(0, 0, 0, 0.40),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  /* Gradient-clipped accent text — matches reference .accent */
+  .accent-text {
+    background: linear-gradient(120deg, var(--mint) 0%, #a7f3d0 50%, var(--mint) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Primary pill button — matches reference .btn-primary */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    border-radius: 9999px;
+    font-family: 'Inter', sans-serif;
+    font-size: var(--step--1);
+    font-weight: 600;
+    background: linear-gradient(135deg, var(--mint) 0%, var(--mint-deep) 100%);
+    color: #062017;
+    box-shadow: 0 4px 20px rgba(94, 234, 212, 0.22);
+    border: none;
+    cursor: pointer;
+    transition: box-shadow 180ms ease;
+  }
+  .btn-primary:hover {
+    box-shadow: 0 6px 24px rgba(94, 234, 212, 0.36);
+  }
+
+  /* Ghost pill button — matches reference .btn-ghost */
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    border-radius: 9999px;
+    font-family: 'Inter', sans-serif;
+    font-size: var(--step--1);
+    font-weight: 600;
+    background: transparent;
+    color: var(--text-0);
+    border: 1px solid var(--surface-bd);
+    cursor: pointer;
+    transition: border-color 180ms ease, color 180ms ease;
+  }
+  .btn-ghost:hover {
+    border-color: var(--mint-dim);
+    color: var(--mint);
+  }
+
+  /* Kicker / eyebrow label — matches reference .kicker */
+  .kicker {
+    font-size: var(--step--1);
+    color: var(--mint);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Live pill indicator */
+  .live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 9999px;
+    background: rgba(248, 113, 113, 0.12);
+    border: 1px solid rgba(248, 113, 113, 0.30);
+    color: #fca5a5;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+
+  /* Section wrapper */
+  .section-inner {
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  /* Hero heading — gradient shimmer sweep */
+  .heading-shimmer {
+    background: linear-gradient(120deg, #5eead4 0%, #a7f3d0 35%, #d4b06a 58%, #5eead4 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: text-shimmer 6s linear infinite;
+  }
+
+  /* Islamic 8-pointed star — floats gently */
+  .star-float {
+    animation: float 8s ease-in-out infinite;
+  }
+
+  /* Subtle dot grid pattern overlay */
+  .dot-grid {
+    background-image: radial-gradient(circle, rgba(94,234,212,0.12) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+}

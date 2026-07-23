@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import type { SearchParams } from "@/api/masjids";
 
 type SearchMode = "name" | "city" | "near-me";
@@ -12,23 +13,18 @@ export function SearchBar({ onSearch, loading }: Props) {
   const [mode, setMode] = useState<SearchMode>("name");
   const [nameQuery, setNameQuery] = useState("");
   const [cityQuery, setCityQuery] = useState("");
-  const [geoStatus, setGeoStatus] = useState<
-    "idle" | "loading" | "ready" | "error"
-  >("idle");
-  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(
-    null,
-  );
+  const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [geoError, setGeoError] = useState("");
   const firstInputRef = useRef<HTMLInputElement>(null);
 
   function handleModeChange(next: SearchMode) {
     setMode(next);
-    // Reset geo state when switching away
     if (next !== "near-me") {
       setCoords(null);
       setGeoStatus("idle");
     }
-    setTimeout(() => firstInputRef.current?.focus(), 0);
+    setTimeout(() => { firstInputRef.current?.focus(); }, 0);
   }
 
   function requestLocation() {
@@ -68,13 +64,19 @@ export function SearchBar({ onSearch, loading }: Props) {
     { id: "near-me", label: "Near me" },
   ];
 
+  /* Shared dark input style */
+  const inputCls =
+    "flex-1 rounded-full bg-white/5 border border-white/10 px-4 py-2.5 text-step--1 " +
+    "text-ink placeholder-ink-muted focus:outline-none focus:border-mint/50 " +
+    "focus:ring-1 focus:ring-mint/30 transition-colors duration-150";
+
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-      {/* Mode tabs */}
+    <div className="glass rounded-card-lg p-5">
+      {/* Tab strip */}
       <div
         role="tablist"
         aria-label="Search method"
-        className="mb-4 flex gap-1 rounded-lg bg-gray-100 p-1"
+        className="relative mb-4 flex rounded-full bg-white/5 p-1"
       >
         {tabs.map(({ id, label }) => (
           <button
@@ -83,129 +85,149 @@ export function SearchBar({ onSearch, loading }: Props) {
             aria-selected={mode === id}
             type="button"
             onClick={() => { handleModeChange(id); }}
-            className={[
-              "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500",
-              mode === id
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700",
-            ].join(" ")}
+            className="relative flex-1 rounded-full px-3 py-1.5 text-step--1 font-medium transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-mint"
+            style={{ zIndex: 1 }}
           >
-            {label}
+            {/* Animated pill indicator sits behind text */}
+            {mode === id && (
+              <motion.span
+                layoutId="tab-indicator"
+                className="absolute inset-0 rounded-full"
+                style={{
+                  background: "linear-gradient(135deg, #5eead4 0%, #0d9488 100%)",
+                  zIndex: -1,
+                }}
+                transition={{ type: "spring", stiffness: 500, damping: 40 }}
+              />
+            )}
+            <span className={mode === id ? "text-[#062017] font-semibold" : "text-ink-muted"}>
+              {label}
+            </span>
           </button>
         ))}
       </div>
 
+      {/* Form body */}
       <form onSubmit={handleSubmit}>
-        {mode === "name" && (
-          <div className="flex gap-2">
-            <label htmlFor="search-name" className="sr-only">
-              Masjid name
-            </label>
-            <input
-              id="search-name"
-              ref={firstInputRef}
-              type="search"
-              value={nameQuery}
-              onChange={(e) => { setNameQuery(e.target.value); }}
-              placeholder="Search by name…"
-              autoComplete="off"
-              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-            />
-            <button
-              type="submit"
-              disabled={!nameQuery.trim() || loading}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+        <AnimatePresence mode="wait">
+          {mode === "name" && (
+            <motion.div
+              key="name"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18 }}
+              className="flex gap-2"
             >
-              Search
-            </button>
-          </div>
-        )}
-
-        {mode === "city" && (
-          <div className="flex gap-2">
-            <label htmlFor="search-city" className="sr-only">
-              City
-            </label>
-            <input
-              id="search-city"
-              ref={firstInputRef}
-              type="search"
-              value={cityQuery}
-              onChange={(e) => { setCityQuery(e.target.value); }}
-              placeholder="Enter city name…"
-              autoComplete="off"
-              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-            />
-            <button
-              type="submit"
-              disabled={!cityQuery.trim() || loading}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-            >
-              Search
-            </button>
-          </div>
-        )}
-
-        {mode === "near-me" && (
-          <div>
-            {geoStatus === "idle" && (
+              <label htmlFor="search-name" className="sr-only">Masjid name</label>
+              <input
+                id="search-name"
+                ref={firstInputRef}
+                type="search"
+                value={nameQuery}
+                onChange={(e) => { setNameQuery(e.target.value); }}
+                placeholder="Search by name…"
+                autoComplete="off"
+                className={inputCls}
+              />
               <button
-                type="button"
-                onClick={requestLocation}
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-600 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                type="submit"
+                disabled={!nameQuery.trim() || loading}
+                className="btn-primary px-5 py-2.5 disabled:opacity-40"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.5}
-                  className="h-4 w-4"
-                  aria-hidden="true"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z"
-                  />
-                </svg>
-                Use my location
+                {loading ? "…" : "Search"}
               </button>
-            )}
-            {geoStatus === "loading" && (
-              <p
-                role="status"
-                className="py-2 text-center text-sm text-gray-500"
+            </motion.div>
+          )}
+
+          {mode === "city" && (
+            <motion.div
+              key="city"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18 }}
+              className="flex gap-2"
+            >
+              <label htmlFor="search-city" className="sr-only">City</label>
+              <input
+                id="search-city"
+                ref={firstInputRef}
+                type="search"
+                value={cityQuery}
+                onChange={(e) => { setCityQuery(e.target.value); }}
+                placeholder="Enter city name…"
+                autoComplete="off"
+                className={inputCls}
+              />
+              <button
+                type="submit"
+                disabled={!cityQuery.trim() || loading}
+                className="btn-primary px-5 py-2.5 disabled:opacity-40"
               >
-                Getting your location…
-              </p>
-            )}
-            {geoStatus === "ready" && coords && (
-              <div className="flex gap-2">
-                <p className="flex-1 self-center text-sm text-gray-600">
-                  Location found — searching nearby masjids
-                </p>
+                {loading ? "…" : "Search"}
+              </button>
+            </motion.div>
+          )}
+
+          {mode === "near-me" && (
+            <motion.div
+              key="near-me"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18 }}
+            >
+              {geoStatus === "idle" && (
                 <button
                   type="button"
                   onClick={requestLocation}
-                  className="text-xs text-emerald-600 hover:underline"
+                  className="btn-ghost w-full justify-center py-2.5"
                 >
-                  Refresh
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                    className="h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round"
+                      d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round"
+                      d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                  </svg>
+                  Use my location
                 </button>
-              </div>
-            )}
-            {geoStatus === "error" && (
-              <p role="alert" className="text-sm text-red-600">
-                {geoError}
-              </p>
-            )}
-          </div>
-        )}
+              )}
+              {geoStatus === "loading" && (
+                <p role="status" className="py-2.5 text-center text-step--1 text-ink-muted">
+                  Getting your location…
+                </p>
+              )}
+              {geoStatus === "ready" && coords && (
+                <div className="flex items-center gap-3">
+                  <p className="flex-1 text-step--1 text-ink-dim">
+                    Location found — searching nearby masjids
+                  </p>
+                  <button
+                    type="button"
+                    onClick={requestLocation}
+                    className="text-step--1 text-mint hover:underline"
+                  >
+                    Refresh
+                  </button>
+                </div>
+              )}
+              {geoStatus === "error" && (
+                <p role="alert" className="text-step--1 text-red-400">
+                  {geoError}
+                </p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </form>
     </div>
   );
