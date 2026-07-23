@@ -1,9 +1,4 @@
-"""Shared FastAPI dependencies and auth helpers.
-
-JWT validation lives here. The login endpoint (which *issues* tokens) is built
-in Phase 4 — for now, tokens can only be created via create_operator_token()
-which is used by the Phase 4 login handler and directly by tests.
-"""
+"""Shared FastAPI dependencies and auth helpers."""
 
 from __future__ import annotations
 
@@ -12,21 +7,25 @@ from uuid import UUID
 
 import jwt
 import structlog
-from fastapi import HTTPException, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from mubeen.config import settings
+from mubeen.db.session import get_session
 
 log = structlog.get_logger()
 
 _bearer = HTTPBearer()
+_bearer_optional = HTTPBearer(auto_error=False)
 
 _ALGORITHM = "HS256"
 _TOKEN_TTL_HOURS = 8
 
 
 def create_operator_token(operator_id: UUID, masjid_id: UUID) -> str:
-    """Sign a JWT scoped to one operator + masjid. Used by the Phase 4 login endpoint and tests."""
+    """Sign a JWT scoped to one operator + masjid."""
     payload = {
         "operator_id": str(operator_id),
         "masjid_id": str(masjid_id),
@@ -39,8 +38,7 @@ def verify_operator_for_masjid(
     credentials: HTTPAuthorizationCredentials,
     masjid_id: UUID,
 ) -> UUID:
-    """
-    Decode the Bearer JWT and assert it is scoped to masjid_id.
+    """Decode the Bearer JWT and assert it is scoped to masjid_id.
 
     Raises 401 for invalid/expired tokens, 403 for wrong-masjid tokens.
     Returns the operator_id from the token.
@@ -65,3 +63,45 @@ def verify_operator_for_masjid(
         )
 
     return operator_id
+
+
+async def get_current_operator(  # noqa: B008
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_optional),  # noqa: B008
+    db: AsyncSession = Depends(get_session),  # noqa: B008
+) -> "OperatorAccount":  # type: ignore[name-defined]  # noqa: F821
+    """Resolve the Bearer JWT to an OperatorAccount row.
+
+    Returns 401 for missing, tampered, or expired tokens.
+    Imported here lazily to avoid a circular-import cycle at module load.
+    """
+    from mubeen.db.models.operator import OperatorAccount  # local to break cycle
+
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    try:
+        payload = jwt.decode(
+            credentials.credentials, settings.secret_key, algorithms=[_ALGORITHM]
+        )
+        operator_id = UUID(payload["operator_id"])
+    except (jwt.InvalidTokenError, KeyError, ValueError) as exc:
+        log.warning("invalid_auth_token", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+    operator = (
+        await db.execute(select(OperatorAccount).where(OperatorAccount.id == operator_id))
+    ).scalar_one_or_none()
+    if operator is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return operator

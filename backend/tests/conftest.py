@@ -88,13 +88,13 @@ async def seed_masjid(db: AsyncSession) -> Masjid:
 
 @pytest_asyncio.fixture
 async def seed_operator(db: AsyncSession, seed_masjid: Masjid) -> tuple[OperatorAccount, str]:
-    import hashlib
+    import bcrypt
 
     operator = OperatorAccount(
         id=uuid4(),
         masjid_id=seed_masjid.id,
-        username="test-operator",
-        hashed_password=hashlib.sha256(b"unused-in-phase2").hexdigest(),
+        email="test-operator@example.com",
+        hashed_password=bcrypt.hashpw(b"fixture-only", bcrypt.gensalt(rounds=4)).decode(),
     )
     db.add(operator)
     await db.flush()
