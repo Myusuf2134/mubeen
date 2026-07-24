@@ -19,6 +19,9 @@ dependencies = [
     "tzfpy>=0.15.0",
 ]
 
+[project.scripts]
+seed-masjids = "mubeen.scripts.seed:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.0",

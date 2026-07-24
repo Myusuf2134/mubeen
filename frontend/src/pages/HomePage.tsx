@@ -1,10 +1,11 @@
 import { useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { searchMasjids, type SearchParams } from "@/api/masjids";
 import { MasjidCard } from "@/components/MasjidCard";
 import { SearchBar } from "@/components/SearchBar";
 import { useFavorites } from "@/hooks/useFavorites";
+import { useAuth } from "@/context/AuthContext";
 import type { MasjidSummary } from "@/types/api";
 
 // Accurate Islamic 8-pointed star (outer r=45, inner r=20, center 50,50)
@@ -37,6 +38,14 @@ export function HomePage() {
   const { favorites, addFavorite, removeFavorite, isFavorite, atCapacity } =
     useFavorites();
 
+  const { isAuthenticated, clearToken } = useAuth();
+  const navigate = useNavigate();
+
+  function handleSignOut() {
+    clearToken();
+    navigate("/", { replace: true });
+  }
+
   function handleSearch(params: SearchParams): void {
     setLoading(true);
     setError("");
@@ -60,6 +69,47 @@ export function HomePage() {
   return (
     <div className="min-h-screen">
 
+      {/* ── Admin nav ──────────────────────────────────────────────── */}
+      <nav
+        aria-label="Operator navigation"
+        className="relative z-10 flex items-center justify-end gap-3 px-5 py-3"
+      >
+        {isAuthenticated ? (
+          <>
+            <Link
+              to="/register-masjid"
+              className="text-[11px] font-medium text-ink-muted transition-colors duration-150 hover:text-mint focus:outline-none focus-visible:ring-2 focus-visible:ring-mint rounded-sm"
+            >
+              My masjid
+            </Link>
+            <span className="h-3 w-px bg-white/15" aria-hidden="true" />
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="text-[11px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-mint rounded-sm"
+            >
+              Sign out
+            </button>
+          </>
+        ) : (
+          <>
+            <Link
+              to="/signup"
+              className="text-[11px] font-medium text-ink-muted transition-colors duration-150 hover:text-mint focus:outline-none focus-visible:ring-2 focus-visible:ring-mint rounded-sm"
+            >
+              Register your masjid
+            </Link>
+            <span className="h-3 w-px bg-white/15" aria-hidden="true" />
+            <Link
+              to="/login"
+              className="text-[11px] font-medium text-ink-muted transition-colors duration-150 hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-mint rounded-sm"
+            >
+              For masjid admins
+            </Link>
+          </>
+        )}
+      </nav>
+
       {/* ── Ambient glow orbs (decorative, fixed) ──────────────────── */}
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
@@ -77,7 +127,7 @@ export function HomePage() {
       </div>
 
       {/* ── Hero ───────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden px-5 pb-10 pt-16 text-center">
+      <section className="relative overflow-hidden px-5 pb-10 pt-10 text-center">
 
         {/* Dot grid texture */}
         <div className="pointer-events-none absolute inset-0 dot-grid opacity-40" aria-hidden="true" />
