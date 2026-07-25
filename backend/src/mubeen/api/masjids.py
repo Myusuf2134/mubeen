@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from uuid import UUID
 
 import structlog
@@ -9,9 +10,15 @@ from sqlalchemy import Float, Integer, bindparam, delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from mubeen.api.deps import verify_operator_for_masjid
+from mubeen.api.deps import (
+    get_current_operator,
+    issue_scoped_token,
+    verify_operator_for_masjid,
+)
+from mubeen.db.models.audit import MasjidAuditLog
 from mubeen.db.models.khutbah import KhutbahSession
-from mubeen.db.models.masjid import IqamahTime, JumuahTime, Masjid
+from mubeen.db.models.masjid import IqamahTime, JumuahTime, Masjid, MasjidOperatorRole
+from mubeen.db.models.operator import OperatorAccount
 from mubeen.db.session import get_session
 from mubeen.schemas.masjid import (
     AdhanTimes,
@@ -21,12 +28,16 @@ from mubeen.schemas.masjid import (
     MasjidSummary,
     PatchIqamahRequest,
     PatchJumuahRequest,
+    PatchMasjidRequest,
+    RegisterMasjidRequest,
+    RegisterMasjidResponse,
 )
 from mubeen.services.prayer_times import get_adhan_times
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/masjids", tags=["masjids"])
 _bearer = HTTPBearer()
+
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -72,7 +83,113 @@ def _build_masjid_detail(
     )
 
 
+def _audit(
+    *,
+    actor_operator_id: UUID | None,
+    masjid_id: UUID | None,
+    action: str,
+    old_values: dict | None = None,
+    new_values: dict | None = None,
+) -> MasjidAuditLog:
+    return MasjidAuditLog(
+        actor_operator_id=actor_operator_id,
+        masjid_id=masjid_id,
+        entity_type="masjid",
+        entity_id=masjid_id,
+        action=action,
+        old_values=old_values,
+        new_values=new_values,
+    )
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
+
+@router.post("", response_model=RegisterMasjidResponse, status_code=status.HTTP_201_CREATED)
+async def register_masjid(  # noqa: B008
+    body: RegisterMasjidRequest,
+    db: AsyncSession = Depends(get_session),  # noqa: B008
+    operator: OperatorAccount = Depends(get_current_operator),  # noqa: B008
+) -> RegisterMasjidResponse:
+    """Register a new masjid; the calling operator becomes owner."""
+    # 409 if operator already holds any role row
+    existing_role = (
+        await db.execute(
+            select(MasjidOperatorRole).where(MasjidOperatorRole.operator_id == operator.id)
+        )
+    ).scalar_one_or_none()
+    if existing_role is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Operator has already registered a masjid",
+        )
+
+    # 409 on duplicate (name, city, state) among non-deleted masjids
+    duplicate = (
+        await db.execute(
+            select(Masjid).where(
+                func.lower(Masjid.name) == func.lower(body.name),
+                func.lower(Masjid.city) == func.lower(body.city),
+                func.lower(Masjid.state) == func.lower(body.state),
+                Masjid.deleted_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if duplicate is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A masjid with this name, city, and state already exists",
+        )
+
+    masjid = Masjid(
+        name=body.name,
+        address_line=body.address_line,
+        city=body.city,
+        state=body.state,
+        country=body.country,
+        lat=body.lat,
+        lon=body.lon,
+        calculation_method=body.calculation_method,
+        phone=body.phone,
+        website=body.website,
+        timezone=body.timezone,
+    )
+    db.add(masjid)
+    await db.flush()  # persist masjid so FK references resolve
+
+    role = MasjidOperatorRole(
+        masjid_id=masjid.id,
+        operator_id=operator.id,
+        role="owner",
+    )
+    db.add(role)
+
+    operator.masjid_id = masjid.id
+
+    db.add(_audit(
+        actor_operator_id=operator.id,
+        masjid_id=masjid.id,
+        action="create",
+        new_values={"name": masjid.name, "city": masjid.city, "state": masjid.state},
+    ))
+    db.add(_audit(
+        actor_operator_id=operator.id,
+        masjid_id=masjid.id,
+        action="ownership_change",
+        new_values={"operator_id": str(operator.id), "role": "owner"},
+    ))
+
+    await db.commit()
+    log.info("masjid_registered", masjid_id=str(masjid.id), operator_id=str(operator.id))
+
+    token = issue_scoped_token(operator.id, masjid.id)
+    return RegisterMasjidResponse(
+        id=masjid.id,
+        name=masjid.name,
+        city=masjid.city,
+        state=masjid.state,
+        access_token=token,
+    )
 
 
 @router.get("/search", response_model=list[MasjidSummary])
@@ -87,9 +204,6 @@ async def search_masjids(  # noqa: B008
 ) -> list[MasjidSummary]:
     """Search masjids by name, city, or proximity. Provide exactly one of: q, city, or lat+lon."""
     if lat is not None and lon is not None:
-        # Near-me: Haversine distance via parameterised SQL expression.
-        # bindparams with explicit types are required by asyncpg's binary protocol.
-        # LEAST/GREATEST clamp prevents ASIN domain error from floating-point rounding.
         stmt = text("""
             SELECT id, name, city, state, country, lat, lon,
                 6371.0 * 2 * ASIN(SQRT(LEAST(1.0, GREATEST(0.0,
@@ -98,6 +212,7 @@ async def search_masjids(  # noqa: B008
                     POWER(SIN(RADIANS(lon - :lon) / 2), 2)
                 )))) AS distance_km
             FROM masjids
+            WHERE deleted_at IS NULL
             ORDER BY distance_km
             LIMIT :limit
         """).bindparams(
@@ -111,7 +226,10 @@ async def search_masjids(  # noqa: B008
     if q:
         stmt = (
             select(Masjid)
-            .where(func.lower(Masjid.name).contains(q.lower()))
+            .where(
+                func.lower(Masjid.name).contains(q.lower()),
+                Masjid.deleted_at.is_(None),
+            )
             .order_by(Masjid.name)
             .limit(limit)
         )
@@ -121,7 +239,10 @@ async def search_masjids(  # noqa: B008
     if city:
         stmt = (
             select(Masjid)
-            .where(func.lower(Masjid.city).contains(city.lower()))
+            .where(
+                func.lower(Masjid.city).contains(city.lower()),
+                Masjid.deleted_at.is_(None),
+            )
             .order_by(Masjid.name)
             .limit(limit)
         )
@@ -142,7 +263,6 @@ async def get_masjid(  # noqa: B008
 ) -> MasjidDetail:
     masjid = await _get_masjid_or_404(masjid_id, db)
 
-    # Check for a live session
     live_result = await db.execute(
         select(KhutbahSession.id)
         .where(KhutbahSession.masjid_id == masjid_id, KhutbahSession.status == "live")
@@ -150,7 +270,6 @@ async def get_masjid(  # noqa: B008
     )
     has_live = live_result.scalar_one_or_none() is not None
 
-    # Latest completed session for the "Summarize" button
     latest_result = await db.execute(
         select(KhutbahSession.id)
         .where(KhutbahSession.masjid_id == masjid_id, KhutbahSession.status == "completed")
@@ -160,6 +279,91 @@ async def get_masjid(  # noqa: B008
     latest_session_id = latest_result.scalar_one_or_none()
 
     return _build_masjid_detail(masjid, has_live, latest_session_id)
+
+
+@router.delete("/{masjid_id}", status_code=status.HTTP_200_OK)
+async def archive_masjid(  # noqa: B008
+    masjid_id: UUID,
+    db: AsyncSession = Depends(get_session),  # noqa: B008
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),  # noqa: B008
+) -> dict:
+    """Soft-delete a masjid (set deleted_at). Requires a scoped Bearer token."""
+    operator_id = verify_operator_for_masjid(credentials, masjid_id)
+
+    result = await db.execute(select(Masjid).where(Masjid.id == masjid_id))
+    masjid = result.scalar_one_or_none()
+    if masjid is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Masjid not found")
+
+    masjid.deleted_at = datetime.datetime.now(datetime.UTC)
+    db.add(_audit(
+        actor_operator_id=operator_id,
+        masjid_id=masjid_id,
+        action="archive",
+        new_values={"deleted_at": masjid.deleted_at.isoformat()},
+    ))
+    await db.commit()
+    log.info("masjid_archived", masjid_id=str(masjid_id))
+    return {"id": str(masjid_id), "deleted": True}
+
+
+@router.post("/{masjid_id}/restore", status_code=status.HTTP_200_OK)
+async def restore_masjid(  # noqa: B008
+    masjid_id: UUID,
+    db: AsyncSession = Depends(get_session),  # noqa: B008
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),  # noqa: B008
+) -> dict:
+    """Restore a soft-deleted masjid (clear deleted_at). Requires a scoped Bearer token."""
+    operator_id = verify_operator_for_masjid(credentials, masjid_id)
+
+    result = await db.execute(select(Masjid).where(Masjid.id == masjid_id))
+    masjid = result.scalar_one_or_none()
+    if masjid is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Masjid not found")
+
+    masjid.deleted_at = None
+    db.add(_audit(
+        actor_operator_id=operator_id,
+        masjid_id=masjid_id,
+        action="restore",
+        old_values={"deleted_at": "was set"},
+        new_values={"deleted_at": None},
+    ))
+    await db.commit()
+    log.info("masjid_restored", masjid_id=str(masjid_id))
+    return {"id": str(masjid_id), "restored": True}
+
+
+@router.patch("/{masjid_id}", status_code=status.HTTP_200_OK)
+async def update_masjid(  # noqa: B008
+    masjid_id: UUID,
+    body: PatchMasjidRequest,
+    db: AsyncSession = Depends(get_session),  # noqa: B008
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),  # noqa: B008
+) -> dict:
+    """Update masjid metadata. Requires a scoped Bearer token."""
+    operator_id = verify_operator_for_masjid(credentials, masjid_id)
+
+    result = await db.execute(select(Masjid).where(Masjid.id == masjid_id))
+    masjid = result.scalar_one_or_none()
+    if masjid is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Masjid not found")
+
+    updates = body.model_dump(exclude_unset=True)
+    old_values = {k: getattr(masjid, k) for k in updates}
+    for k, v in updates.items():
+        setattr(masjid, k, v)
+
+    db.add(_audit(
+        actor_operator_id=operator_id,
+        masjid_id=masjid_id,
+        action="update",
+        old_values=old_values,
+        new_values=updates,
+    ))
+    await db.commit()
+    log.info("masjid_updated", masjid_id=str(masjid_id), fields=list(updates.keys()))
+    return {"id": str(masjid_id), "updated": True}
 
 
 @router.put("/{masjid_id}/iqamah", response_model=list[IqamahTimeOut])

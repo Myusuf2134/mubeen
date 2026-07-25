@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 from typing import Literal
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
@@ -125,3 +126,62 @@ class PatchJumuahRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     jumuah_times: list[JumuahTimeIn]
+
+
+# ── Masjid registration ────────────────────────────────────────────────────────
+
+
+class RegisterMasjidRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str
+    address_line: str
+    city: str
+    state: str
+    country: str = "US"
+    lat: float
+    lon: float
+    calculation_method: str = "ISNA"
+    phone: str | None = None
+    website: str | None = None
+    timezone: str
+
+    @field_validator("name")
+    @classmethod
+    def name_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("name must not be blank")
+        return v
+
+    @field_validator("timezone")
+    @classmethod
+    def valid_iana_timezone(cls, v: str) -> str:
+        try:
+            ZoneInfo(v)
+        except (ZoneInfoNotFoundError, KeyError):
+            raise ValueError(f"'{v}' is not a valid IANA timezone")
+        return v
+
+
+class RegisterMasjidResponse(BaseModel):
+    id: UUID
+    name: str
+    city: str
+    state: str
+    access_token: str
+
+
+class PatchMasjidRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    address_line: str | None = None
+    city: str | None = None
+    state: str | None = None
+    country: str | None = None
+    lat: float | None = None
+    lon: float | None = None
+    calculation_method: str | None = None
+    phone: str | None = None
+    website: str | None = None
+    timezone: str | None = None

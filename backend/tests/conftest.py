@@ -36,6 +36,8 @@ _CLEANUP_TABLES = [
     "khutbah_sessions",
     "jumuah_times",
     "iqamah_times",
+    "masjid_audit_logs",
+    "masjid_operator_roles",
     "operator_accounts",
     "masjids",
 ]

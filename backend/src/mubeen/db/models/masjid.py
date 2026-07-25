@@ -39,6 +39,10 @@ class Masjid(Base):
     calculation_method: Mapped[str] = mapped_column(String(50), nullable=False, server_default="ISNA")
     phone: Mapped[str | None] = mapped_column(String(50))
     website: Mapped[str | None] = mapped_column(String(500))
+    timezone: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -100,3 +104,22 @@ class JumuahTime(Base):
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
     masjid: Mapped[Masjid] = relationship("Masjid", back_populates="jumuah_times")
+
+
+class MasjidOperatorRole(Base):
+    """Authoritative join between a masjid and an operator, carrying a role label."""
+
+    __tablename__ = "masjid_operator_roles"
+    __table_args__ = (
+        UniqueConstraint("masjid_id", "operator_id", name="uq_masjid_operator_role"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    masjid_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("masjids.id"), nullable=False
+    )
+    operator_id: Mapped[UUID] = mapped_column(
+        PGUUID(as_uuid=True), ForeignKey("operator_accounts.id"), nullable=False
+    )
+    role: Mapped[str] = mapped_column(String(50), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
