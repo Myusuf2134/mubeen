@@ -1,0 +1,14 @@
+# Dev-only overrides — auto-loaded by `docker compose up`.
+# Production: `docker compose -f docker-compose.yml up`
+#
+# WATCHFILES_FORCE_POLLING bypasses inotify (which Docker Desktop on macOS
+# does not forward across the VM boundary) in favour of stat-based polling.
+services:
+  backend:
+    command: ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn mubeen.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src"]
+    environment:
+      WATCHFILES_FORCE_POLLING: "1"
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/alembic:/app/alembic
+      - ./backend/alembic.ini:/app/alembic.ini

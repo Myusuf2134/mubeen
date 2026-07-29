@@ -30,14 +30,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    # Run migrations then start the server. --reload picks up src/ changes via the volume mount.
     command: >
       sh -c "uv run alembic upgrade head &&
-             uv run uvicorn mubeen.main:app --host 0.0.0.0 --port 8000 --reload"
-    volumes:
-      - ./backend/src:/app/src
-      - ./backend/alembic:/app/alembic
-      - ./backend/alembic.ini:/app/alembic.ini
+             uv run uvicorn mubeen.main:app --host 0.0.0.0 --port 8000"
 
 volumes:
   postgres_data:
