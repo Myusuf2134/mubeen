@@ -30,16 +30,31 @@ the following are built:
 
 from __future__ import annotations
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
+import bcrypt
 import jwt
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from mubeen.api.deps import create_operator_token
 from mubeen.config import settings
 from mubeen.db.models.masjid import Masjid
 from mubeen.db.models.operator import OperatorAccount
+
+
+async def _seed_admin(db: AsyncSession) -> str:
+    """Insert a platform admin via the shared session and return a JWT."""
+    admin = OperatorAccount(
+        id=uuid4(),
+        email="reg-test-admin@test.mubeen",
+        hashed_password=bcrypt.hashpw(b"admin-only", bcrypt.gensalt(rounds=4)).decode(),
+        is_admin=True,
+    )
+    db.add(admin)
+    await db.flush()
+    return create_operator_token(admin.id, None)
 
 # ── Shared constants ──────────────────────────────────────────────────────────
 
@@ -334,8 +349,19 @@ async def test_restore_clears_deleted_at(
     assert row.deleted_at is None
 
 
-async def test_restore_masjid_reappears_in_search(client: AsyncClient) -> None:
+async def test_restore_masjid_reappears_in_search(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    # MB-009: a masjid must be approved before it is publicly visible.
+    # The correct flow is: register → approve → archive → restore → visible.
+    admin_tok = await _seed_admin(db)
     masjid_id, scoped_tok = await _registered(client, email=_OP_A)
+
+    approve = await client.post(
+        f"/api/admin/masjids/{masjid_id}/approve",
+        headers=_auth(admin_tok),
+    )
+    assert approve.status_code == 200
 
     await client.delete(f"/api/masjids/{masjid_id}", headers=_auth(scoped_tok))
     restore = await client.post(

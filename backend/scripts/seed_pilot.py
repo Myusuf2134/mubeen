@@ -267,11 +267,11 @@ async def main() -> None:
         print(f"  {table:<22}  {i} inserted  {s} already existed")
 
     if inserted["operator_accounts"]:
-        print(f"\n  Operator created:")
+        print("\n  Operator created:")
         print(f"    username : {OPERATOR['username']}")
         print(f"    password : {OPERATOR['password']}")
         print(f"    scope    : Islamic Center of America ({M_ICA})")
-        print(f"\n  ⚠  Change the password before any real use.")
+        print("\n  ⚠  Change the password before any real use.")
     else:
         print(f"\n  Operator '{OPERATOR['username']}' already exists — password unchanged.")
 

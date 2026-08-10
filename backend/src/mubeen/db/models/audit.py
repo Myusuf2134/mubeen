@@ -11,6 +11,26 @@ from sqlalchemy.orm import Mapped, mapped_column
 from mubeen.db.base import Base
 
 
+def make_audit_row(
+    *,
+    actor_operator_id: UUID | None,
+    masjid_id: UUID | None,
+    action: str,
+    old_values: dict | None = None,
+    new_values: dict | None = None,
+) -> MasjidAuditLog:
+    """Return an unsaved MasjidAuditLog instance. Add it to the session and commit."""
+    return MasjidAuditLog(
+        actor_operator_id=actor_operator_id,
+        masjid_id=masjid_id,
+        entity_type="masjid",
+        entity_id=masjid_id,
+        action=action,
+        old_values=old_values,
+        new_values=new_values,
+    )
+
+
 class MasjidAuditLog(Base):
     __tablename__ = "masjid_audit_logs"
 

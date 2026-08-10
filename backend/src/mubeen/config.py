@@ -35,9 +35,14 @@ class Settings(BaseSettings):
     secret_key: str = Field(repr=False)
     deepgram_api_key: str = ""
     openai_api_key: str = ""
+    openai_model: str = "gpt-4o"
+    translation_target_lang: str = "en"
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:8000"]
     environment: str = "development"
     log_level: str = "INFO"
+    phrase_buffer_min_window_seconds: float = 2.0
+    phrase_buffer_max_window_seconds: float = 4.0
+    phrase_buffer_coalesce_debounce_seconds: float = 0.2
 
     @field_validator("environment")
     @classmethod
@@ -48,7 +53,7 @@ class Settings(BaseSettings):
         return v
 
     @model_validator(mode="after")
-    def validate_secret_key(self) -> "Settings":
+    def validate_secret_key(self) -> Settings:
         """Fail fast when SECRET_KEY is missing or dangerously weak.
 
         All environments: key must be non-empty.

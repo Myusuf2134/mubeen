@@ -43,7 +43,7 @@ def test_prayer_times_are_tz_aware() -> None:
 def test_prayer_ordering_fajr_before_isha() -> None:
     result = get_adhan_times(_LAT, _LON, "ISNA")
     order = ["fajr", "dhuhr", "asr", "maghrib", "isha"]
-    for earlier, later in zip(order, order[1:]):
+    for earlier, later in zip(order, order[1:], strict=False):
         assert result[earlier] < result[later], (
             f"{earlier} should be before {later}"
         )

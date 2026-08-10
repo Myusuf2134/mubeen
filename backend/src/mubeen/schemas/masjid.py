@@ -7,6 +7,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from mubeen.services.prayer_times import CALCULATION_METHOD_MAP
+
 # ── Response models ────────────────────────────────────────────────────────────
 
 
@@ -73,7 +75,7 @@ class MasjidDetail(BaseModel):
 # ── Request models (extra="forbid" rejects unknown fields per spec §9) ─────────
 
 _VALID_PRAYERS = {"fajr", "dhuhr", "asr", "maghrib", "isha"}
-_VALID_METHODS = {"ISNA", "MWL", "UMM_AL_QURA", "EGYPT", "KARACHI", "DUBAI", "KUWAIT", "QATAR", "SINGAPORE", "MOON_SIGHTING_COMMITTEE"}
+_VALID_METHODS: frozenset[str] = frozenset(CALCULATION_METHOD_MAP)
 
 
 class IqamahTimeIn(BaseModel):
@@ -146,6 +148,16 @@ class RegisterMasjidRequest(BaseModel):
     website: str | None = None
     timezone: str
 
+    @field_validator("calculation_method")
+    @classmethod
+    def valid_calc_method(cls, v: str) -> str:
+        if v not in _VALID_METHODS:
+            raise ValueError(
+                f"'{v}' is not a supported calculation method; "
+                f"choose from {sorted(_VALID_METHODS)}"
+            )
+        return v
+
     @field_validator("name")
     @classmethod
     def name_not_blank(cls, v: str) -> str:
@@ -158,8 +170,8 @@ class RegisterMasjidRequest(BaseModel):
     def valid_iana_timezone(cls, v: str) -> str:
         try:
             ZoneInfo(v)
-        except (ZoneInfoNotFoundError, KeyError):
-            raise ValueError(f"'{v}' is not a valid IANA timezone")
+        except (ZoneInfoNotFoundError, KeyError) as exc:
+            raise ValueError(f"'{v}' is not a valid IANA timezone") from exc
         return v
 
 
@@ -185,3 +197,13 @@ class PatchMasjidRequest(BaseModel):
     phone: str | None = None
     website: str | None = None
     timezone: str | None = None
+
+    @field_validator("calculation_method")
+    @classmethod
+    def valid_calc_method(cls, v: str | None) -> str | None:
+        if v is not None and v not in _VALID_METHODS:
+            raise ValueError(
+                f"'{v}' is not a supported calculation method; "
+                f"choose from {sorted(_VALID_METHODS)}"
+            )
+        return v

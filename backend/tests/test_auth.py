@@ -25,7 +25,6 @@ from __future__ import annotations
 import datetime
 
 import jwt
-import pytest
 from httpx import AsyncClient
 
 from mubeen.config import settings

@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    CheckConstraint,
     DateTime,
     Float,
     ForeignKey,
@@ -26,6 +27,12 @@ if TYPE_CHECKING:
 
 class Masjid(Base):
     __tablename__ = "masjids"
+    __table_args__ = (
+        CheckConstraint(
+            "moderation_status IN ('pending', 'approved', 'rejected')",
+            name="ck_masjids_moderation_status",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -40,6 +47,9 @@ class Masjid(Base):
     phone: Mapped[str | None] = mapped_column(String(50))
     website: Mapped[str | None] = mapped_column(String(500))
     timezone: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    moderation_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, server_default="pending", index=True
+    )
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
     )

@@ -24,6 +24,7 @@ CALCULATION_METHOD_MAP: dict[str, CalculationMethod] = {
     "QATAR": CalculationMethod.QATAR,
     "SINGAPORE": CalculationMethod.SINGAPORE,
     "MOON_SIGHTING_COMMITTEE": CalculationMethod.MOON_SIGHTING_COMMITTEE,
+    "UOIF": CalculationMethod.UOIF,
 }
 
 

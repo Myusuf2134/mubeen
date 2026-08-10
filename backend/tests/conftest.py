@@ -11,6 +11,7 @@ import os
 from collections.abc import AsyncGenerator
 from uuid import uuid4
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -41,6 +42,13 @@ _CLEANUP_TABLES = [
     "operator_accounts",
     "masjids",
 ]
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter() -> None:
+    from mubeen.api.limiter import limiter
+
+    limiter._storage.reset()
 
 
 @pytest_asyncio.fixture
@@ -82,6 +90,7 @@ async def seed_masjid(db: AsyncSession) -> Masjid:
         lat=44.9778,
         lon=-93.2650,
         calculation_method="ISNA",
+        moderation_status="approved",
     )
     db.add(masjid)
     await db.flush()

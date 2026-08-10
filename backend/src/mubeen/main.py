@@ -7,21 +7,17 @@ import structlog
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 
 import mubeen.db.models  # noqa: F401 — registers all ORM models
+from mubeen.api.limiter import limiter
 from mubeen.api.router import router
 from mubeen.config import settings
 from mubeen.log import configure_logging
 
 log = structlog.get_logger()
-
-# ── Rate limiter (module-level so routers can import it) ──────────────────────
-limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
-
 
 # ── Security headers ──────────────────────────────────────────────────────────
 

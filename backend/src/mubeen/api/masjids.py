@@ -15,7 +15,8 @@ from mubeen.api.deps import (
     issue_scoped_token,
     verify_operator_for_masjid,
 )
-from mubeen.db.models.audit import MasjidAuditLog
+from mubeen.api.limiter import limiter
+from mubeen.db.models.audit import make_audit_row
 from mubeen.db.models.khutbah import KhutbahSession
 from mubeen.db.models.masjid import IqamahTime, JumuahTime, Masjid, MasjidOperatorRole
 from mubeen.db.models.operator import OperatorAccount
@@ -83,23 +84,7 @@ def _build_masjid_detail(
     )
 
 
-def _audit(
-    *,
-    actor_operator_id: UUID | None,
-    masjid_id: UUID | None,
-    action: str,
-    old_values: dict | None = None,
-    new_values: dict | None = None,
-) -> MasjidAuditLog:
-    return MasjidAuditLog(
-        actor_operator_id=actor_operator_id,
-        masjid_id=masjid_id,
-        entity_type="masjid",
-        entity_id=masjid_id,
-        action=action,
-        old_values=old_values,
-        new_values=new_values,
-    )
+_audit = make_audit_row
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -193,8 +178,9 @@ async def register_masjid(  # noqa: B008
 
 
 @router.get("/search", response_model=list[MasjidSummary])
+@limiter.limit("60/minute")
 async def search_masjids(  # noqa: B008
-    request: Request,  # noqa: ARG001 — required by slowapi
+    request: Request,
     q: str | None = Query(None, max_length=100, description="Name search (case-insensitive)"),
     city: str | None = Query(None, max_length=100, description="City / area search"),
     lat: float | None = Query(None, ge=-90, le=90, description="Near-me: user latitude"),
@@ -212,7 +198,7 @@ async def search_masjids(  # noqa: B008
                     POWER(SIN(RADIANS(lon - :lon) / 2), 2)
                 )))) AS distance_km
             FROM masjids
-            WHERE deleted_at IS NULL
+            WHERE deleted_at IS NULL AND moderation_status = 'approved'
             ORDER BY distance_km
             LIMIT :limit
         """).bindparams(
@@ -229,6 +215,7 @@ async def search_masjids(  # noqa: B008
             .where(
                 func.lower(Masjid.name).contains(q.lower()),
                 Masjid.deleted_at.is_(None),
+                Masjid.moderation_status == "approved",
             )
             .order_by(Masjid.name)
             .limit(limit)
@@ -242,6 +229,7 @@ async def search_masjids(  # noqa: B008
             .where(
                 func.lower(Masjid.city).contains(city.lower()),
                 Masjid.deleted_at.is_(None),
+                Masjid.moderation_status == "approved",
             )
             .order_by(Masjid.name)
             .limit(limit)
@@ -262,6 +250,8 @@ async def get_masjid(  # noqa: B008
     db: AsyncSession = Depends(get_session),  # noqa: B008
 ) -> MasjidDetail:
     masjid = await _get_masjid_or_404(masjid_id, db)
+    if masjid.moderation_status != "approved":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Masjid not found")
 
     live_result = await db.execute(
         select(KhutbahSession.id)

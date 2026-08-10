@@ -4,14 +4,20 @@ from uuid import uuid4
 
 import bcrypt
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mubeen.api.deps import create_operator_token
+from mubeen.api.limiter import limiter
 from mubeen.db.models.operator import OperatorAccount
 from mubeen.db.session import get_session
-from mubeen.schemas.auth import LoginRequest, LoginResponse, SignupRequest, SignupResponse
+from mubeen.schemas.auth import (
+    LoginRequest,
+    LoginResponse,
+    SignupRequest,
+    SignupResponse,
+)
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -37,7 +43,9 @@ def _invalid_creds() -> HTTPException:
 
 
 @router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def signup(  # noqa: B008
+    request: Request,
     body: SignupRequest,
     db: AsyncSession = Depends(get_session),  # noqa: B008
 ) -> SignupResponse:
@@ -65,7 +73,9 @@ async def signup(  # noqa: B008
 
 
 @router.post("/login", response_model=LoginResponse)
+@limiter.limit("10/minute")
 async def login(  # noqa: B008
+    request: Request,
     body: LoginRequest,
     db: AsyncSession = Depends(get_session),  # noqa: B008
 ) -> LoginResponse:
