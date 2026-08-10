@@ -17,6 +17,7 @@ const CALC_METHODS = [
   { value: "QATAR",                   label: "Qatar" },
   { value: "SINGAPORE",               label: "Singapore" },
   { value: "MOON_SIGHTING_COMMITTEE", label: "Moon Sighting Committee" },
+  { value: "UOIF",                    label: "UOIF (France)" },
 ];
 
 const TZ_GROUPS: Array<{ group: string; zones: Array<{ value: string; label: string }> }> = [
@@ -115,7 +116,7 @@ const ALL_TZ_VALUES = new Set(TZ_GROUPS.flatMap((g) => g.zones.map((z) => z.valu
 
 const BROWSER_TZ = (() => {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone ?? "America/New_York";
+    return Intl.DateTimeFormat().resolvedOptions().timeZone;
   } catch {
     return "America/New_York";
   }
@@ -213,12 +214,12 @@ export function RegisterMasjidPage() {
   // Auth guard + redirect if operator already has a masjid
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate("/login", { replace: true });
+      void navigate("/login", { replace: true });
       return;
     }
     if (token) {
       const masjidId = decodeJWTMasjidId(token);
-      if (masjidId) navigate(`/masjid/${masjidId}`, { replace: true });
+      if (masjidId) void navigate(`/masjid/${masjidId}`, { replace: true });
     }
   }, [isAuthenticated, token, navigate]);
 
@@ -243,10 +244,8 @@ export function RegisterMasjidPage() {
 
   function clearFieldError(field: string) {
     setErrors((prev) => {
-      if (!prev[field]) return prev;
-      const next = { ...prev };
-      delete next[field];
-      return next;
+      if (!(field in prev)) return prev;
+      return Object.fromEntries(Object.entries(prev).filter(([k]) => k !== field));
     });
   }
 
@@ -267,6 +266,7 @@ export function RegisterMasjidPage() {
   }
 
   function handleUseMyLocation() {
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!navigator.geolocation) {
       setGeoError("Geolocation is not supported by your browser.");
       return;
@@ -296,6 +296,10 @@ export function RegisterMasjidPage() {
     setFormError("");
     if (Object.keys(errs).length > 0) return;
 
+    if (!token) {
+      setFormError("Session expired. Please sign in again.");
+      return;
+    }
     setLoading(true);
     try {
       const data = await registerMasjidApi(
@@ -312,10 +316,10 @@ export function RegisterMasjidPage() {
           phone: phone.trim() || undefined,
           website: website.trim() || undefined,
         },
-        token!,
+        token,
       );
       storeToken(data.access_token);
-      navigate(`/masjid/${data.id}`, { replace: true });
+      void navigate(`/masjid/${data.id}`, { replace: true });
     } catch (err) {
       if (err instanceof MasjidApiError) {
         if (err.field === "name") {
@@ -337,7 +341,7 @@ export function RegisterMasjidPage() {
 
   function handleSignOut() {
     clearToken();
-    navigate("/login", { replace: true });
+    void navigate("/login", { replace: true });
   }
 
   const inputBase =
@@ -427,7 +431,7 @@ export function RegisterMasjidPage() {
                 Fill in the details below. You can update them any time from your dashboard.
               </p>
 
-              <form onSubmit={handleSubmit} noValidate>
+              <form onSubmit={(e) => { void handleSubmit(e); }} noValidate>
 
                 {/* ── Identity ────────────────────────────────────────── */}
 
@@ -525,7 +529,7 @@ export function RegisterMasjidPage() {
                     autoComplete="country"
                     maxLength={2}
                     value={country}
-                    onChange={(e) => setCountry(e.target.value.toUpperCase())}
+                    onChange={(e) => { setCountry(e.target.value.toUpperCase()); }}
                     placeholder="US"
                     className={inputBase + normalBorder + " uppercase max-w-[100px]"}
                   />
@@ -624,7 +628,7 @@ export function RegisterMasjidPage() {
                       <select
                         id="rm-calc"
                         value={calcMethod}
-                        onChange={(e) => setCalcMethod(e.target.value)}
+                        onChange={(e) => { setCalcMethod(e.target.value); }}
                         className={selectCls("calc_method")}
                       >
                         {CALC_METHODS.map((m) => (
@@ -682,7 +686,7 @@ export function RegisterMasjidPage() {
                     type="tel"
                     autoComplete="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => { setPhone(e.target.value); }}
                     placeholder="+1 (614) 555-0100"
                     className={inputBase + normalBorder}
                   />
@@ -698,7 +702,7 @@ export function RegisterMasjidPage() {
                     type="url"
                     autoComplete="url"
                     value={website}
-                    onChange={(e) => setWebsite(e.target.value)}
+                    onChange={(e) => { setWebsite(e.target.value); }}
                     placeholder="https://masjid-alhuda.org"
                     className={inputBase + normalBorder}
                   />

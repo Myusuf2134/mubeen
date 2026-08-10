@@ -43,7 +43,7 @@ export function HomePage() {
 
   function handleSignOut() {
     clearToken();
-    navigate("/", { replace: true });
+    void navigate("/", { replace: true });
   }
 
   function handleSearch(params: SearchParams): void {

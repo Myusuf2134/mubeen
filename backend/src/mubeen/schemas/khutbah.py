@@ -3,9 +3,24 @@
 from __future__ import annotations
 
 import datetime
+from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class RenderPayloadSchema(BaseModel):
+    """MB-016 Stage 5 render payload for broadcasting to display clients."""
+
+    text: str
+    source_text: str
+    source: str  # "scripture" or "machine"
+    machine_generated: bool
+    surah: Optional[int] = None
+    ayah: Optional[int] = None
+    ref_label: Optional[str] = None
+    translation: Optional[str] = None
+    decision_state: Optional[str] = None
 
 
 class BroadcastMessage(BaseModel):
@@ -20,6 +35,7 @@ class BroadcastMessage(BaseModel):
     english_text: str | None = None
     segment_type: str = "plain_speech"
     is_partial: bool = False
+    render_payload: Optional[RenderPayloadSchema] = None  # MB-016 Stage 5 payload (if available)
 
 
 class PublishFrame(BaseModel):

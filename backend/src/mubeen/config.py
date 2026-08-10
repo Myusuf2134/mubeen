@@ -43,6 +43,16 @@ class Settings(BaseSettings):
     phrase_buffer_min_window_seconds: float = 2.0
     phrase_buffer_max_window_seconds: float = 4.0
     phrase_buffer_coalesce_debounce_seconds: float = 0.2
+    # MB-016 STAGE 3-4: Qur'an matching (all settings-driven, no literals)
+    quran_confirm_threshold: float = 0.85
+    quran_nearmiss_floor: float = 0.65
+    quran_min_match_words: int = 6
+    quran_min_margin: float = 0.10
+    # Score penalty for non-prefix substring matches (recitations start at ayah beginning)
+    quran_non_prefix_score_weight: float = 0.5
+    # Complete ayah gate: if window covers this fraction of candidate + high score + not ambiguous,
+    # allow CONFIRMED even if fewer than min_match_words (e.g., short complete ayat like 112:1)
+    quran_complete_ayah_coverage_threshold: float = 0.9
 
     @field_validator("environment")
     @classmethod

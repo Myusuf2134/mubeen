@@ -84,9 +84,11 @@ class TestTokenSimilarityScoring:
         assert basmala_normalized is not None
 
         # Match the exact normalized text
-        result = await matcher.match(basmala_normalized)
+        match_with_second = await matcher.match(basmala_normalized)
 
-        assert result is not None, "Should find a match for Basmala"
+        assert match_with_second is not None, "Should find a match for Basmala"
+        assert match_with_second.best is not None
+        result = match_with_second.best
         assert result.surah == 1, "Should match Surah 1"
         assert result.ayah == 1, "Should match Ayah 1"
         assert result.score >= 0.9, (
@@ -100,14 +102,15 @@ class TestTokenSimilarityScoring:
 
         # Random phrase unlikely to appear in Qur'an
         random_arabic = normalize_arabic("كمبيوتر الحديثة والتقنية العصرية")
-        result = await matcher.match(random_arabic)
+        match_with_second = await matcher.match(random_arabic)
 
         # Either no match or very low score
-        if result is None:
+        if match_with_second is None or match_with_second.best is None:
             # No candidates found — that's good (random text doesn't match index)
             pass
         else:
             # If a match is found, score should be low
+            result = match_with_second.best
             assert result.score < 0.5, (
                 f"Random text should score low, got {result.score}: {result.ref_label}"
             )
@@ -123,9 +126,11 @@ class TestTokenSimilarityScoring:
         throne_normalized = corpus.get_normalized_text(2, 255)
         assert throne_normalized is not None
 
-        result = await matcher.match(throne_normalized)
+        match_with_second = await matcher.match(throne_normalized)
 
-        assert result is not None, "Should find match for Throne Verse"
+        assert match_with_second is not None, "Should find match for Throne Verse"
+        assert match_with_second.best is not None
+        result = match_with_second.best
         assert result.surah == 2, "Should match Surah 2"
         assert result.ayah == 255, "Should match Ayah 255"
         assert result.score >= 0.9, (
@@ -142,9 +147,11 @@ class TestTokenSimilarityScoring:
         ayah_96_normalized = corpus.get_normalized_text(94, 6)
         assert ayah_96_normalized is not None
 
-        result = await matcher.match(ayah_96_normalized)
+        match_with_second = await matcher.match(ayah_96_normalized)
 
-        assert result is not None, "Should find match for 94:6"
+        assert match_with_second is not None, "Should find match for 94:6"
+        assert match_with_second.best is not None
+        result = match_with_second.best
         assert result.surah == 94, "Should match Surah 94"
         assert result.ayah == 6, "Should match Ayah 6"
         assert result.score >= 0.9, (
@@ -169,9 +176,11 @@ class TestMatchingWindow:
         words = basmala_full.split()
         partial_window = " ".join(words[:min(5, len(words))])
 
-        result = await matcher.match(partial_window)
+        match_with_second = await matcher.match(partial_window)
 
-        assert result is not None, "Partial window should find a match"
+        assert match_with_second is not None, "Partial window should find a match"
+        assert match_with_second.best is not None
+        result = match_with_second.best
         assert result.surah == 1, (
             f"Partial Basmala should match Surah 1, got {result.surah}"
         )
@@ -187,15 +196,15 @@ class TestMatchingWindow:
     async def test_empty_window_returns_none(self) -> None:
         """Empty window should return None."""
         matcher = await get_quran_matcher()
-        result = await matcher.match("")
-        assert result is None, "Empty window should return None"
+        match_with_second = await matcher.match("")
+        assert match_with_second is None, "Empty window should return None"
 
     @pytest.mark.asyncio
     async def test_whitespace_only_window_returns_none(self) -> None:
         """Whitespace-only window should return None."""
         matcher = await get_quran_matcher()
-        result = await matcher.match("   ")
-        assert result is None, "Whitespace-only window should return None"
+        match_with_second = await matcher.match("   ")
+        assert match_with_second is None, "Whitespace-only window should return None"
 
 
 class TestMatchResultStructure:
@@ -208,9 +217,11 @@ class TestMatchResultStructure:
 
         # Match a known ayah
         basmala_normalized = normalize_arabic("بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ")
-        result = await matcher.match(basmala_normalized)
+        match_with_second = await matcher.match(basmala_normalized)
 
-        assert result is not None
+        assert match_with_second is not None
+        assert match_with_second.best is not None
+        result = match_with_second.best
         assert hasattr(result, "surah"), "MatchResult must have surah"
         assert hasattr(result, "ayah"), "MatchResult must have ayah"
         assert hasattr(result, "ref_label"), "MatchResult must have ref_label"
@@ -222,3 +233,11 @@ class TestMatchResultStructure:
 
         assert 0.0 <= result.score <= 1.0, "Score must be in [0.0, 1.0]"
         assert result.ref_label == f"{result.surah}:{result.ayah}"
+
+        # Verify second_best_score is present
+        assert hasattr(match_with_second, "second_best_score"), (
+            "MatchWithSecondBest must have second_best_score"
+        )
+        assert 0.0 <= match_with_second.second_best_score <= 1.0, (
+            "second_best_score must be in [0.0, 1.0]"
+        )

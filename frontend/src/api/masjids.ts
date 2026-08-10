@@ -39,15 +39,15 @@ export interface RegisterMasjidResult {
 
 function extractPydanticField(detail: unknown): string {
   if (!Array.isArray(detail) || detail.length === 0) return "form";
-  const first = detail[0] as { loc?: unknown[] };
-  const loc = first?.loc ?? [];
-  return String(loc[loc.length - 1] ?? "form");
+  const first = detail[0] as { loc?: string[] };
+  const loc = first.loc ?? [];
+  return loc[loc.length - 1] ?? "form";
 }
 
 function extractPydanticMessage(detail: unknown): string {
   if (!Array.isArray(detail) || detail.length === 0) return "Validation error";
   const first = detail[0] as { msg?: string };
-  return (first?.msg ?? "Validation error").replace(/^Value error,\s*/i, "");
+  return (first.msg ?? "Validation error").replace(/^Value error,\s*/i, "");
 }
 
 export async function registerMasjidApi(

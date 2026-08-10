@@ -16,7 +16,7 @@ export interface LoginResult {
 function extractPydanticMessage(detail: unknown): string {
   if (!Array.isArray(detail) || detail.length === 0) return "Validation error";
   const first = detail[0] as { msg?: string; loc?: string[] };
-  return (first?.msg ?? "Validation error").replace(/^Value error,\s*/i, "");
+  return (first.msg ?? "Validation error").replace(/^Value error,\s*/i, "");
 }
 
 export async function signupApi(email: string, password: string): Promise<void> {
@@ -40,7 +40,7 @@ export async function signupApi(email: string, password: string): Promise<void> 
     const detail = body.detail;
     const message = extractPydanticMessage(detail);
     const firstLoc =
-      (Array.isArray(detail) && (detail[0] as { loc?: string[] })?.loc) || [];
+      (Array.isArray(detail) && (detail[0] as { loc?: string[] }).loc) || [];
     const lastField = firstLoc[firstLoc.length - 1];
     throw new AuthApiError(message, lastField === "password" ? "password" : "form");
   }

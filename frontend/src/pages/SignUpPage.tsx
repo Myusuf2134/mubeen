@@ -89,7 +89,7 @@ export function SignUpPage() {
       await signupApi(email, password);
       const { access_token } = await loginApi(email, password);
       storeToken(access_token);
-      navigate("/register-masjid", { replace: true });
+      void navigate("/register-masjid", { replace: true });
     } catch (err) {
       if (err instanceof AuthApiError) {
         if (err.field === "email") setEmailError(err.message);
@@ -183,7 +183,7 @@ export function SignUpPage() {
               Set up your operator account — no masjid required yet.
             </p>
 
-            <form onSubmit={handleSubmit} noValidate>
+            <form onSubmit={(e) => { void handleSubmit(e); }} noValidate>
               {/* Email */}
               <div className="mb-5">
                 <label

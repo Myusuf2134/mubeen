@@ -6,6 +6,7 @@ import { MasjidPage } from "@/pages/MasjidPage";
 import { SignUpPage } from "@/pages/SignUpPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { RegisterMasjidPage } from "@/pages/RegisterMasjidPage";
+import { DisplayPage } from "@/pages/DisplayPage";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/masjid/:id" element={<MasjidPage />} />
+              <Route path="/display/:masjidId" element={<DisplayPage />} />
               <Route path="/signup" element={<SignUpPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register-masjid" element={<RegisterMasjidPage />} />

@@ -11,10 +11,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from typing import Optional
 
+from mubeen.config import settings
 from mubeen.services.normalize_arabic import normalize_arabic
 from mubeen.services.quran_corpus import AyahData, QuranCorpus, get_quran_corpus
 
@@ -31,6 +32,17 @@ class MatchResult:
     score: float  # [0.0, 1.0] token-level similarity
     matched_span: str  # The normalized matched portion
     candidate_ayah_normalized: str  # Full normalized ayah text
+    coverage_of_candidate: float = 0.0  # Fraction of candidate ayah covered by window
+
+
+@dataclass
+class MatchWithSecondBest:
+    """Match result with second-best score and ambiguity detection."""
+
+    best: Optional[MatchResult]
+    second_best_score: float  # Score of runner-up candidate (0.0 if no runner-up)
+    is_ambiguous: bool = False  # True if window is valid prefix of multiple candidates
+    ambiguous_candidates: list[tuple[int, int]] = field(default_factory=list)  # Other (surah, ayah) sharing window as prefix
 
 
 class QuranNGramIndex:
@@ -154,22 +166,67 @@ class QuranMatcher:
         _log.info("QuranMatcher initialized")
 
     def _token_similarity(self, window_tokens: list[str], ayah_tokens: list[str]) -> float:
-        """Compute token-level sequence similarity using SequenceMatcher.
+        """Compute token-level sequence similarity: coverage of window in candidate.
 
-        Returns a ratio in [0.0, 1.0] representing how much of the window
-        is covered by a contiguous match in the ayah.
+        PRINCIPLED SCORING (not hardcoded penalties):
+        Measures: what fraction of the window tokens appear as a contiguous,
+        in-order sequence within the candidate, PREFERRING PREFIX MATCHES.
+
+        Scoring strategy:
+        - Prefix match (window starts at position 0 of ayah): score = (matched / window_len)
+        - Non-prefix substring match: score = 0.5 * (matched / window_len)
+          (Recitations typically start at ayah beginning, not middle)
+        - Non-contiguous: score low by construction
+
+        This preserves the principle that partial recitations should match highly,
+        while still disambiguating when a phrase appears in multiple places.
 
         Args:
-            window_tokens: normalized STT tokens
-            ayah_tokens: normalized ayah tokens
+            window_tokens: normalized STT tokens (what was spoken)
+            ayah_tokens: normalized ayah tokens (the candidate)
 
         Returns:
-            Similarity in [0.0, 1.0]
+            Similarity in [0.0, 1.0]: weighted by position of match
         """
-        # Use SequenceMatcher to find longest contiguous match
-        matcher = SequenceMatcher(None, window_tokens, ayah_tokens)
-        # Get ratio: 2 * M / T where M = matches, T = total tokens
-        return matcher.ratio()
+        window_len = len(window_tokens)
+        ayah_len = len(ayah_tokens)
+
+        if window_len == 0:
+            return 0.0
+
+        # Find the longest contiguous subsequence of window within ayah
+        # Try prefix match first (position 0)
+        prefix_matched = 0
+        for i in range(window_len):
+            if i < ayah_len and ayah_tokens[i] == window_tokens[i]:
+                prefix_matched += 1
+            else:
+                break
+
+        # Try non-prefix matches (starting at position > 0)
+        non_prefix_matched = 0
+        for start_pos in range(1, ayah_len):
+            matched_count = 0
+            for i in range(window_len):
+                ayah_idx = start_pos + matched_count
+                if ayah_idx < ayah_len and ayah_tokens[ayah_idx] == window_tokens[i]:
+                    matched_count += 1
+                else:
+                    break
+            non_prefix_matched = max(non_prefix_matched, matched_count)
+
+        # Score: prefer prefix matches, penalize non-prefix by weight from settings
+        # (Recitations naturally start at ayah beginning, not middle)
+        # Settings: quran_non_prefix_score_weight (default 0.5)
+        prefix_score = prefix_matched / window_len
+        non_prefix_score = (
+            settings.quran_non_prefix_score_weight * non_prefix_matched / window_len
+            if non_prefix_matched > 0
+            else 0.0
+        )
+
+        score = max(prefix_score, non_prefix_score)
+        return score
 
     async def match(self, normalized_text: str) -> Optional[MatchResult]:
         """Match normalized STT text against corpus.
@@ -201,8 +258,10 @@ class QuranMatcher:
 
         best_score = 0.0
         best_result: Optional[MatchResult] = None
+        second_best_score = 0.0
+        all_candidates_with_scores: list[tuple[int, int, float, str]] = []
 
-        # Score each candidate
+        # Score each candidate, track top 2 and all for ambiguity detection
         for surah, ayah in candidates:
             candidate_normalized = self.corpus.get_normalized_text(surah, ayah)
             if not candidate_normalized:
@@ -211,7 +270,16 @@ class QuranMatcher:
             candidate_tokens = candidate_normalized.split()
             score = self._token_similarity(window_tokens, candidate_tokens)
 
+            # Calculate coverage of candidate: how much of the candidate ayah does the window cover?
+            # This is used to determine if the window is a COMPLETE recitation of a short ayah
+            candidate_coverage = len(window_tokens) / len(candidate_tokens) if candidate_tokens else 0.0
+            candidate_coverage = min(candidate_coverage, 1.0)  # Cap at 100%
+
+            all_candidates_with_scores.append((surah, ayah, score, candidate_normalized))
+
             if score > best_score:
+                # New best found — old best becomes second-best
+                second_best_score = best_score
                 best_score = score
                 best_result = MatchResult(
                     surah=surah,
@@ -220,9 +288,49 @@ class QuranMatcher:
                     score=score,
                     matched_span=normalized_text,
                     candidate_ayah_normalized=candidate_normalized,
+                    coverage_of_candidate=candidate_coverage,
+                )
+            elif score > second_best_score:
+                # Better than second-best but not better than best
+                second_best_score = score
+
+        # CRITICAL: Detect ambiguity — when window is a valid prefix of multiple candidates
+        # A valid prefix means: window text matches the start of the candidate
+        ambiguous_candidates: list[tuple[int, int]] = []
+        is_ambiguous = False
+
+        if best_result is not None:
+            # Check how many candidates have the window as a valid prefix
+            # A valid prefix: normalized text of candidate starts with the window
+            candidates_with_prefix = []
+            for surah, ayah, score, candidate_normalized in all_candidates_with_scores:
+                candidate_words = candidate_normalized.split()
+                window_word_count = len(window_tokens)
+                # Check if first N words of candidate match the window
+                if len(candidate_words) >= window_word_count:
+                    candidate_prefix = " ".join(candidate_words[:window_word_count])
+                    if candidate_prefix == normalized_text:
+                        candidates_with_prefix.append((surah, ayah, score))
+
+            # If multiple candidates share the window as a valid prefix, mark ambiguous
+            is_ambiguous = len(candidates_with_prefix) > 1
+            if is_ambiguous:
+                # List candidates other than the best
+                ambiguous_candidates = [
+                    (s, a) for s, a, sc in candidates_with_prefix if not (s == best_result.surah and a == best_result.ayah)
+                ]
+                _log.warning(
+                    f"AMBIGUITY DETECTED: Window '{normalized_text}' is valid prefix of "
+                    f"{len(candidates_with_prefix)} ayat: {candidates_with_prefix}. "
+                    f"Cannot confirm without disambiguation."
                 )
 
-        return best_result
+        return MatchWithSecondBest(
+            best=best_result,
+            second_best_score=second_best_score,
+            is_ambiguous=is_ambiguous,
+            ambiguous_candidates=ambiguous_candidates,
+        )
 
 
 # Singleton matcher instance

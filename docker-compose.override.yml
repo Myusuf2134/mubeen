@@ -8,7 +8,10 @@ services:
     command: ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn mubeen.main:app --host 0.0.0.0 --port 8000 --reload --reload-dir /app/src"]
     environment:
       WATCHFILES_FORCE_POLLING: "1"
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
     volumes:
       - ./backend/src:/app/src
       - ./backend/alembic:/app/alembic
       - ./backend/alembic.ini:/app/alembic.ini
+      
