@@ -13,6 +13,7 @@ dependencies = [
     "psycopg2-binary>=2.9.10",
     "passlib[bcrypt]>=1.7.4",
     "PyJWT[crypto]>=2.10.0",
+    "cryptography>=50.0.0",
     "structlog>=25.1.0",
     "adhanpy>=0.1.12",
     "slowapi>=0.1.9",
