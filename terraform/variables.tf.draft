@@ -1,0 +1,88 @@
+# MB-020 Terraform Variables — DRAFT SCAFFOLD
+# Define input variables for infrastructure configuration.
+# Learning: understand variable types, defaults, validation, and sensitivity.
+
+# TODO: AWS Region
+#   - Question: which region for lowest latency to target audience?
+#   - Consider: data residency, service availability, cost differences
+variable "aws_region" {
+  description = "AWS region for deployment"
+  type        = string
+  default     = "us-east-1"  # TODO: Choose based on requirements
+}
+
+# TODO: Environment naming
+#   - Typical values: dev, staging, prod
+#   - Used for resource naming and tagging
+variable "environment" {
+  description = "Deployment environment"
+  type        = string
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.environment)
+    error_message = "Environment must be dev, staging, or prod."
+  }
+}
+
+# TODO: VPC CIDR block
+#   - Learning: understand CIDR notation, address space planning
+#   - 10.0.0.0/16 gives 65,536 addresses; enough for most single-region deployments
+variable "vpc_cidr" {
+  description = "CIDR block for VPC"
+  type        = string
+  default     = "10.0.0.0/16"  # TODO: Verify address space won't conflict
+}
+
+# TODO: Availability zones
+#   - How many for this application? (HA = 2, higher redundancy = 3)
+variable "availability_zones_count" {
+  description = "Number of availability zones to span"
+  type        = number
+  default     = 2
+  validation {
+    condition     = var.availability_zones_count >= 1 && var.availability_zones_count <= 3
+    error_message = "Must deploy to 1-3 AZs."
+  }
+}
+
+# TODO: Application configuration
+#   - Image, port, replicas, resource limits
+variable "app_image" {
+  description = "Docker image for Mubeen app"
+  type        = string
+  # TODO: Where is this image hosted? ECR, DockerHub? How to reference in Terraform?
+}
+
+variable "app_port" {
+  description = "Port app listens on"
+  type        = number
+  default     = 8000
+}
+
+# TODO: Database configuration
+#   - Instance type, storage, backup settings
+#   - Learning: understand RDS parameter groups, performance insights
+variable "db_instance_type" {
+  description = "RDS instance type"
+  type        = string
+  default     = "db.t3.micro"  # TODO: Size for expected load
+}
+
+variable "db_allocated_storage" {
+  description = "RDS allocated storage (GB)"
+  type        = number
+  default     = 20
+}
+
+# TODO: Sensitive variables (API keys, passwords)
+#   - How to inject into Terraform? Secrets manager? Env vars? .tfvars files (never commit)?
+variable "openai_api_key" {
+  description = "OpenAI API key (sensitive)"
+  type        = string
+  sensitive   = true
+  # TODO: How to provide this safely? terraform.tfvars in .gitignore? AWS Secrets Manager?
+}
+
+# TODO: Learning questions to address:
+#   - How to validate CIDR doesn't conflict with existing infrastructure?
+#   - How to handle secrets without storing in state file?
+#   - How to manage different configs for dev/staging/prod (workspaces? separate .tfvars)?

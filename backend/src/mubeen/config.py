@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
     translation_target_lang: str = "en"
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:8000"]
+    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:8000", "http://192.168.1.233:5173"]
     environment: str = "development"
     log_level: str = "INFO"
     phrase_buffer_min_window_seconds: float = 2.0

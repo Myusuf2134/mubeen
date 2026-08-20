@@ -47,9 +47,14 @@ from mubeen.schemas.khutbah import (
     StartSessionResponse,
     StopSessionResponse,
 )
+from mubeen.config import settings
+from mubeen.schemas.khutbah import RenderPayloadSchema
 from mubeen.services.broadcast import hub
 from mubeen.services.khutbah import get_live_session, persist_final_segment
+from mubeen.services.phrase_buffer import PhraseBuffer
+from mubeen.services.quran_render import is_scripture_with_render
 from mubeen.services.transcription import get_transcriber
+from mubeen.services.translation import get_translator
 
 log = structlog.get_logger()
 router = APIRouter(prefix="/khutbah", tags=["khutbah"])
@@ -456,30 +461,119 @@ async def audio(websocket: WebSocket, masjid_id: UUID) -> None:
                 reconnect_ok = False
                 break
 
+            # Create phrase buffer for this transcriber instance.
+            buffer = PhraseBuffer(min_window_s=2.0, max_window_s=4.0, coalesce_debounce_s=0.2)
+
             async def _result_pump(transcriber=t) -> None:
+                """Broadcast interims immediately; feed finals to buffer for enrichment."""
                 nonlocal seq
                 async for r in transcriber.results():
+                    # For interims, create minimal render_payload so display can render gray text.
+                    interim_payload = None
+                    if not r.is_final:
+                        interim_payload = RenderPayloadSchema(
+                            text=r.text,
+                            source_text=r.text,
+                            source="machine",
+                            machine_generated=False,
+                            decision_state=None,
+                        )
+
                     message = BroadcastMessage(
                         masjid_id=masjid_id,
                         sequence_number=seq,
                         arabic_text=r.text,
                         is_partial=not r.is_final,
+                        render_payload=interim_payload,
                     )
                     hub.publish(masjid_id, message)
                     if r.is_final:
-                        await persist_final_segment(session_id, seq, r.text)
-                        log.debug(
-                            "segment_persisted",
-                            masjid_id=str(masjid_id),
-                            session_id=str(session_id),
-                            sequence_number=seq,
-                            confidence=r.confidence,
-                        )
-                        seq += 1
+                        buffer.feed(r)
+
+            async def _enrichment_pump() -> None:
+                """Pull finalized phrases from buffer; enrich with scripture/translation; broadcast & persist."""
+                nonlocal seq
+                translator = get_translator(api_key=settings.openai_api_key)
+                try:
+                    while True:
+                        phrase = await buffer.output_queue.get()
+                        try:
+                            # Check if phrase is scripture.
+                            is_scripture, render_payload = await is_scripture_with_render(
+                                phrase.text, phrase.text
+                            )
+
+                            # Build render payload based on scripture match.
+                            if is_scripture and render_payload:
+                                # Scripture confirmed or near-miss — use render payload directly.
+                                final_render = render_payload
+                                english_text = render_payload.translation
+                                quran_surah = render_payload.surah
+                                quran_ayah = render_payload.ayah
+                            else:
+                                # Not scripture — translate to English.
+                                translation = await translator.translate(
+                                    phrase.text, source_lang="ar", target_lang="en"
+                                )
+                                english_text = translation.text
+                                quran_surah = None
+                                quran_ayah = None
+                                final_render = RenderPayloadSchema(
+                                    text=translation.text,
+                                    source_text=phrase.text,
+                                    source="machine",
+                                    machine_generated=True,
+                                    translation=None,
+                                    decision_state=None,
+                                )
+
+                            # Broadcast enriched message.
+                            message = BroadcastMessage(
+                                masjid_id=masjid_id,
+                                sequence_number=seq,
+                                arabic_text=phrase.text,
+                                english_text=english_text,
+                                is_partial=False,
+                                render_payload=final_render,
+                            )
+                            hub.publish(masjid_id, message)
+                            log.info(
+                                "segment_enriched_and_published",
+                                masjid_id=str(masjid_id),
+                                sequence_number=seq,
+                                source=final_render.source if final_render else "unknown",
+                            )
+
+                            # Persist with enrichment.
+                            await persist_final_segment(
+                                session_id,
+                                seq,
+                                phrase.text,
+                                english_text=english_text,
+                                quran_surah=quran_surah,
+                                quran_ayah=quran_ayah,
+                            )
+                            log.info(
+                                "segment_persisted",
+                                masjid_id=str(masjid_id),
+                                session_id=str(session_id),
+                                sequence_number=seq,
+                                english_text=english_text,
+                            )
+                            seq += 1
+                        except Exception as exc:
+                            log.error(
+                                "enrichment_error",
+                                masjid_id=str(masjid_id),
+                                error=str(exc),
+                            )
+                except asyncio.CancelledError:
+                    pass  # Expected on reconnect or shutdown.
 
             result_task = asyncio.create_task(_result_pump())
+            enrichment_task = asyncio.create_task(_enrichment_pump())
             done, _pending = await asyncio.wait(
-                {audio_task, result_task},
+                {audio_task, result_task, enrichment_task},
                 return_when=asyncio.FIRST_COMPLETED,
             )
 
@@ -488,23 +582,30 @@ async def audio(websocket: WebSocket, masjid_id: UUID) -> None:
                 # send_close_stream() triggers Deepgram to flush any buffered
                 # finals. close() then waits for _run_listener to read them and
                 # put the sentinel; result_task consumes those trailing finals and
-                # exits naturally. Only then do we finish this attempt.
+                # exits naturally. enrichment_task drains remaining buffer items.
                 await t.close()
                 transcriber_ref[0] = None
                 if result_task not in done:
                     await asyncio.gather(result_task, return_exceptions=True)
+                enrichment_task.cancel()
+                await asyncio.gather(enrichment_task, return_exceptions=True)
                 break  # operator disconnected — do not reconnect
 
-            # result_task finished first → Deepgram dropped; attempt reconnect.
-            # Cancel result_task (it's already done or will be after cancel).
+            # result_task or enrichment_task finished first → Deepgram dropped; attempt reconnect.
+            # Cancel both tasks (they're already done or will be after cancel).
             result_task.cancel()
-            await asyncio.gather(result_task, return_exceptions=True)
+            enrichment_task.cancel()
+            await asyncio.gather(result_task, enrichment_task, return_exceptions=True)
 
-            # Log unexpected result_task errors (ignore CancelledError).
+            # Log unexpected result_task/enrichment_task errors (ignore CancelledError).
             if not result_task.cancelled():
                 exc = result_task.exception()
                 if exc is not None and not isinstance(exc, (asyncio.CancelledError, WebSocketDisconnect)):
                     log.error("result_pump_error", masjid_id=str(masjid_id), error=str(exc))
+            if not enrichment_task.cancelled():
+                exc = enrichment_task.exception()
+                if exc is not None and not isinstance(exc, asyncio.CancelledError):
+                    log.error("enrichment_pump_error", masjid_id=str(masjid_id), error=str(exc))
 
             await t.close()
             transcriber_ref[0] = None

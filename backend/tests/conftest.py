@@ -24,8 +24,8 @@ from mubeen.db.session import get_session
 from mubeen.main import app
 
 _TEST_DB_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql+asyncpg://mubeen:mubeen@localhost:5432/mubeen",
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://mubeen:mubeen@localhost:5432/mubeen_test",
 )
 
 _engine = create_async_engine(_TEST_DB_URL, echo=False)

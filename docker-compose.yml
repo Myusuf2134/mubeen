@@ -20,6 +20,8 @@ services:
       context: ./backend
     ports:
       - "8000:8000"
+    volumes:
+      - ./data/quran:/data/quran:ro
     environment:
       DATABASE_URL: postgresql+asyncpg://mubeen:mubeen@db:5432/mubeen
       DATABASE_URL_SYNC: postgresql://mubeen:mubeen@db:5432/mubeen

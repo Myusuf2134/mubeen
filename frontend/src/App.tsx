@@ -1,12 +1,14 @@
 import { MotionConfig } from "framer-motion";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
+import { MarketingPage } from "@/pages/MarketingPage";
 import { HomePage } from "@/pages/HomePage";
 import { MasjidPage } from "@/pages/MasjidPage";
 import { SignUpPage } from "@/pages/SignUpPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { RegisterMasjidPage } from "@/pages/RegisterMasjidPage";
 import { DisplayPage } from "@/pages/DisplayPage";
+import { OperatorConsolePage } from "@/pages/OperatorConsolePage";
 
 export default function App() {
   return (
@@ -23,9 +25,11 @@ export default function App() {
           </a>
           <main id="main-content" className="min-h-screen">
             <Routes>
-              <Route path="/" element={<HomePage />} />
+              <Route path="/" element={<MarketingPage />} />
+              <Route path="/directory" element={<HomePage />} />
               <Route path="/masjid/:id" element={<MasjidPage />} />
               <Route path="/display/:masjidId" element={<DisplayPage />} />
+              <Route path="/operator" element={<OperatorConsolePage />} />
               <Route path="/signup" element={<SignUpPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register-masjid" element={<RegisterMasjidPage />} />

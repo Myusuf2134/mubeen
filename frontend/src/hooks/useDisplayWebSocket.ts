@@ -1,6 +1,7 @@
 // Hook for TV display WebSocket subscriber — auto-reconnect, heartbeat, liveness.
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { getWebSocketBase } from '@/utils/websocket';
 
 export interface RenderPayload {
   text: string;
@@ -29,32 +30,29 @@ export type DisplayState = 'connecting' | 'connected' | 'reconnecting' | 'discon
 
 interface UseDisplayWebSocketReturn {
   state: DisplayState;
-  message: BroadcastMessage | null;
-  payload: RenderPayload | null;
-  interim: boolean;
+  history: RenderPayload[];  // Last N finalized captions (newest at end)
+  interim: RenderPayload | null;  // Currently forming text (separate from history)
   error: string | null;
 }
 
 const _MAX_RECONNECT_ATTEMPTS = 10;
 const _RECONNECT_BACKOFF = [1, 2, 4, 8, 16, 32, 32, 32, 32, 32]; // exponential, capped at 32s
+const _HISTORY_MAX_SIZE = 6;  // Number of finalized captions to keep on screen
 
 export function useDisplayWebSocket(masjidId: string): UseDisplayWebSocketReturn {
   const [state, setState] = useState<DisplayState>('connecting');
-  const [message, setMessage] = useState<BroadcastMessage | null>(null);
-  const [payload, setPayload] = useState<RenderPayload | null>(null);
-  const [interim, setInterim] = useState(false);
+  const [history, setHistory] = useState<RenderPayload[]>([]);  // Finalized captions
+  const [interim, setInterim] = useState<RenderPayload | null>(null);  // Currently forming
   const [error, setError] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const heartbeatTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Determine WebSocket URL (browser auto-detects http/https → ws/wss)
+  // Determine WebSocket URL (backend base from VITE_WS_BASE or localhost:8000)
   const getWsUrl = useCallback(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    return `${protocol}//${host}/api/khutbah/${masjidId}/live`;
+    const base = getWebSocketBase();
+    return `${base}/api/khutbah/${masjidId}/live`;
   }, [masjidId]);
 
   // Clear any pending reconnect timeout
@@ -65,25 +63,6 @@ export function useDisplayWebSocket(masjidId: string): UseDisplayWebSocketReturn
     }
   }, []);
 
-  // Clear heartbeat timeout
-  const clearHeartbeatTimeout = useCallback(() => {
-    if (heartbeatTimeoutRef.current !== null) {
-      clearTimeout(heartbeatTimeoutRef.current);
-      heartbeatTimeoutRef.current = null;
-    }
-  }, []);
-
-  // Setup heartbeat/liveness check (detect silent disconnects)
-  const setupHeartbeat = useCallback(() => {
-    clearHeartbeatTimeout();
-    // If no message arrives in 30 seconds, assume disconnected
-    heartbeatTimeoutRef.current = setTimeout(() => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        console.warn('Display: heartbeat timeout, closing WebSocket');
-        wsRef.current?.close(1000, 'heartbeat_timeout');
-      }
-    }, 30000);
-  }, [clearHeartbeatTimeout]);
 
   // Handle incoming message
   const handleMessage = useCallback(
@@ -100,17 +79,34 @@ export function useDisplayWebSocket(masjidId: string): UseDisplayWebSocketReturn
           is_partial: data.is_partial || false,
           render_payload: data.render_payload,
         };
-        setMessage(msg);
-        setInterim(msg.is_partial);
-        setPayload(msg.render_payload || null);
+
+        const payload = msg.render_payload || null;
+
+        if (msg.is_partial) {
+          // Interim (forming) text: update the interim state, don't add to history
+          setInterim(payload);
+        } else {
+          // Final text: add to history and clear interim
+          if (payload) {
+            setHistory((prev) => {
+              const newHistory = [...prev, payload];
+              // Keep only the last N items
+              if (newHistory.length > _HISTORY_MAX_SIZE) {
+                newHistory.shift();
+              }
+              return newHistory;
+            });
+          }
+          setInterim(null);
+        }
+
         setError(null);
-        setupHeartbeat();
       } catch (e) {
         console.error('Display: failed to parse message', e);
         setError('Failed to parse server message');
       }
     },
-    [setupHeartbeat]
+    []
   );
 
   // Attempt connection with exponential backoff
@@ -127,14 +123,12 @@ export function useDisplayWebSocket(masjidId: string): UseDisplayWebSocketReturn
         reconnectAttemptRef.current = 0;
         setError(null);
         setState('connected');
-        setupHeartbeat();
       };
 
       ws.onmessage = handleMessage;
 
       ws.onclose = () => {
         console.log('Display: WebSocket closed');
-        clearHeartbeatTimeout();
         wsRef.current = null;
         if (reconnectAttemptRef.current < _MAX_RECONNECT_ATTEMPTS) {
           const backoff = _RECONNECT_BACKOFF[reconnectAttemptRef.current];
@@ -163,24 +157,23 @@ export function useDisplayWebSocket(masjidId: string): UseDisplayWebSocketReturn
       setState('error');
       setError(String(e));
     }
-  }, [getWsUrl, handleMessage, setupHeartbeat, clearHeartbeatTimeout]);
+  }, [getWsUrl, handleMessage]);
 
   // Initial connection on mount
   useEffect(() => {
     connect();
     return () => {
       clearReconnectTimeout();
-      clearHeartbeatTimeout();
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
+      if (wsRef.current) {
+        wsRef.current.onclose = null;
         wsRef.current.close();
       }
     };
-  }, [connect, clearReconnectTimeout, clearHeartbeatTimeout]);
+  }, [connect, clearReconnectTimeout]);
 
   return {
     state,
-    message,
-    payload,
+    history,
     interim,
     error,
   };

@@ -31,8 +31,11 @@ async def persist_final_segment(
     session_id: UUID,
     sequence_number: int,
     arabic_text: str,
+    english_text: str | None = None,
+    quran_surah: int | None = None,
+    quran_ayah: int | None = None,
 ) -> None:
-    """Write one finalized KhutbahSegment (plain_speech, english_text=None).
+    """Write one finalized KhutbahSegment with optional enrichment fields.
 
     Uses a short async with SessionLocal() block — safe to call from a
     long-lived WS handler without pinning a connection for the session.
@@ -43,8 +46,11 @@ async def persist_final_segment(
                 session_id=session_id,
                 sequence_number=sequence_number,
                 arabic_text=arabic_text,
+                english_text=english_text,
                 is_partial=False,
                 segment_type="plain_speech",
+                quran_surah=quran_surah,
+                quran_ayah=quran_ayah,
             )
         )
         await db.commit()

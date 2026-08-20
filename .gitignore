@@ -41,3 +41,5 @@ khutbah.nova-3.ar.json
 test_deepgram_arabic.py
 .envd
 .envd
+frontend/.env.local
+.mcp.json

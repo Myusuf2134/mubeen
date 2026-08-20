@@ -1,0 +1,97 @@
+# MB-020 Infrastructure as Code (Terraform) — DRAFT SCAFFOLD ONLY
+# This is a learning exercise for SRE/cloud infrastructure.
+# DO NOT run terraform init/plan/apply; fill in TODO sections.
+
+# TODO: Configure Terraform backend
+#   - Local state for learning, or S3 backend for production?
+#   - Decide based on deployment target (local dev vs AWS account)
+
+terraform {
+  required_version = ">= 1.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"  # TODO: Pin to specific version or version constraint
+    }
+  }
+
+  # TODO: Uncomment and configure for shared state (learning: understand backend tradeoffs)
+  # backend "s3" {
+  #   bucket         = "TODO-terraform-state-bucket"
+  #   key            = "mubeen/terraform.tfstate"
+  #   region         = "us-east-1"
+  #   encrypt        = true
+  # }
+}
+
+provider "aws" {
+  region = var.aws_region
+  # TODO: Add tags for all resources (standard practice for cost allocation, automation)
+  default_tags {
+    tags = {
+      Project     = "Mubeen"
+      Environment = var.environment
+      ManagedBy   = "Terraform"
+    }
+  }
+}
+
+# TODO: VPC Resource Block
+#   - CIDR block strategy (typically 10.0.0.0/16 for class B private)
+#   - DNS hostnames enabled?
+#   - Flow logs for debugging network issues?
+# resource "aws_vpc" "main" {
+#   cidr_block = var.vpc_cidr
+#   ...
+# }
+
+# TODO: Public/Private Subnets
+#   - How many availability zones (2 for HA? 3 for redundancy)?
+#   - Subnet sizing (CIDR blocks for future growth)
+#   - Public vs private split (load balancer public, app/DB private)
+
+# TODO: Internet Gateway (for public subnet egress)
+# resource "aws_internet_gateway" "main" {
+#   ...
+# }
+
+# TODO: NAT Gateway (for private subnet egress)
+#   - Single NAT (cheaper, single point of failure) vs per-AZ (more expensive, resilient)
+
+# TODO: Route Tables and Routes
+#   - Public route table (0.0.0.0/0 → IGW)
+#   - Private route table (0.0.0.0/0 → NAT or nothing, depending on app needs)
+
+# TODO: Security Groups
+#   - ALB security group (allow 80/443 from internet)
+#   - App security group (allow 8000 from ALB only)
+#   - DB security group (allow 5432 from app only)
+#   - SSH access (bastion host vs Systems Manager Session Manager?)
+
+# TODO: Other networking considerations (learning points):
+#   - VPC Flow Logs for debugging connectivity
+#   - Network ACLs vs Security Groups (when to use each)
+#   - VPC Endpoints for AWS services (if needed for cost/performance)
+#   - Route 53 private hosted zones for internal DNS
+
+# TODO: Data sources for availability zones
+# data "aws_availability_zones" "available" {
+#   state = "available"
+# }
+
+output "vpc_id" {
+  value       = aws_vpc.main.id
+  description = "VPC ID"
+  # TODO: Mark as sensitive if contains secrets
+}
+
+output "public_subnets" {
+  value       = [for s in aws_subnet.public : s.id]
+  description = "Public subnet IDs"
+}
+
+output "private_subnets" {
+  value       = [for s in aws_subnet.private : s.id]
+  description = "Private subnet IDs"
+}

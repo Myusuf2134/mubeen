@@ -1,0 +1,90 @@
+# MB-020 Terraform Outputs — DRAFT SCAFFOLD
+# Define output values that users/other configs need after terraform apply.
+# Learning: understand what metrics matter for operations and debugging.
+
+# TODO: Network infrastructure outputs
+#   - Why expose these? Other modules/teams need these IDs for cross-stack references
+
+output "vpc_id" {
+  description = "VPC ID"
+  value       = "TODO: aws_vpc.main.id"  # Replace with actual resource reference
+}
+
+output "public_subnet_ids" {
+  description = "Public subnet IDs"
+  value       = "TODO: [for subnet in aws_subnet.public : subnet.id]"
+  # Learning: this allows ALB to be placed across multiple AZs
+}
+
+output "private_subnet_ids" {
+  description = "Private subnet IDs"
+  value       = "TODO: [for subnet in aws_subnet.private : subnet.id]"
+  # Learning: app servers and DB go in private subnets for security
+}
+
+# TODO: ALB/Load Balancer outputs
+#   - DNS name for accessing the application
+#   - Learning: ALB provides high availability and SSL termination
+
+output "load_balancer_dns" {
+  description = "DNS name of the load balancer"
+  value       = "TODO: aws_lb.main.dns_name"
+  # This is what users access (e.g., https://mubeen-alb-xyz.us-east-1.elb.amazonaws.com)
+}
+
+# TODO: App cluster outputs
+#   - Cluster name, task definition ARN, service ARN
+#   - Learning: needed for deployments, debugging, monitoring
+
+output "ecs_cluster_name" {
+  description = "ECS cluster name"
+  value       = "TODO: aws_ecs_cluster.main.name"
+}
+
+output "ecs_service_name" {
+  description = "ECS service name"
+  value       = "TODO: aws_ecs_service.app.name"
+}
+
+# TODO: Database outputs
+#   - Endpoint for connection, port, database name
+#   - Learning: never expose password in outputs (use AWS Secrets Manager)
+
+output "rds_endpoint" {
+  description = "RDS database endpoint"
+  value       = "TODO: aws_db_instance.main.endpoint"
+  # Format: "hostname:port", e.g., "mubeen-db-xyz.us-east-1.rds.amazonaws.com:5432"
+}
+
+output "rds_database_name" {
+  description = "RDS database name"
+  value       = "TODO: aws_db_instance.main.db_name"
+}
+
+# TODO: Security group outputs
+#   - IDs of security groups for reference/debugging
+#   - Learning: useful if other infrastructure needs to reference these
+
+output "alb_security_group_id" {
+  description = "ALB security group ID"
+  value       = "TODO: aws_security_group.alb.id"
+}
+
+output "app_security_group_id" {
+  description = "App security group ID"
+  value       = "TODO: aws_security_group.app.id"
+}
+
+# TODO: Operational outputs
+#   - CloudWatch log group names for centralized logging
+#   - VPC Flow Logs location for debugging network issues
+
+output "app_log_group_name" {
+  description = "CloudWatch log group for app"
+  value       = "TODO: aws_cloudwatch_log_group.app.name"
+  # Learning: apps log to this for centralized observability
+}
+
+# TODO: Cost/billing information
+#   - Not typically outputs, but good to document expected costs
+#   - t3.micro RDS ~ $30/month, NAT Gateway ~ $32/month, data transfer costs, etc.

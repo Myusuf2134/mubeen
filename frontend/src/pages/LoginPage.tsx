@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { loginApi, AuthApiError } from "@/api/auth";
 import { useAuth } from "@/context/AuthContext";
+import { MubeenLogo } from "@/components/MubeenLogo";
 
 function EyeIcon({ open }: { open: boolean }) {
   return open ? (
@@ -44,7 +45,7 @@ function FieldError({ message }: { message: string }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.16 }}
-      className="mt-1.5 text-[11px] font-medium text-red-400"
+      className="mt-1.5 text-xs font-medium text-red-500"
     >
       {message}
     </motion.p>
@@ -68,6 +69,7 @@ export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [keepSignedIn, setKeepSignedIn] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [formError, setFormError] = useState("");
@@ -86,7 +88,7 @@ export function LoginPage() {
     try {
       const { access_token } = await loginApi(email, password);
       storeToken(access_token);
-      void navigate("/register-masjid", { replace: true });
+      void navigate("/operator", { replace: true });
     } catch (err) {
       if (err instanceof AuthApiError) {
         if (err.field === "email") setEmailError(err.message);
@@ -100,246 +102,353 @@ export function LoginPage() {
     }
   }
 
-  const inputBase =
-    "w-full rounded-[14px] bg-white/[0.05] px-4 py-3 text-step--1 text-ink " +
-    "placeholder-ink-muted transition-colors duration-150 " +
-    "focus:outline-none focus:ring-1";
-
   return (
-    <div className="relative min-h-screen flex items-center justify-center px-5 py-12">
+    <div className="flex h-screen overflow-hidden">
+      {/* LEFT PANEL — Warm cream background, branding, quote, gradient+pattern footer */}
+      <div
+        className="w-2/5 flex flex-col overflow-hidden"
+        style={{ backgroundColor: "#e8dcc8" }}
+      >
+        {/* Top section: Logo, headline, quote */}
+        <div className="flex-1 flex flex-col justify-start px-12 pt-12 pb-8 overflow-y-auto">
+          {/* Logo + MUBEEN */}
+          <div className="flex items-center gap-4 mb-12">
+            <MubeenLogo size={56} />
+            <span
+              className="font-sora font-black"
+              style={{ fontSize: "var(--step-2)", color: "#1a1a1a", letterSpacing: "-0.02em" }}
+            >
+              MUBEEN
+            </span>
+          </div>
 
-      {/* Ambient glow orbs */}
-      <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
+          {/* Headline — serif */}
+          <h1
+            className="font-amiri font-bold mb-8 leading-tight"
+            style={{ fontSize: "var(--step-3)", color: "#1a1a1a", maxWidth: "320px" }}
+          >
+            Connecting communities through technology.
+          </h1>
+
+          {/* Gold diamond divider */}
+          <div className="mb-8">
+            <div className="text-2xl" style={{ color: "#d4a574" }}>◆</div>
+          </div>
+
+          {/* Quote */}
+          <blockquote
+            className="font-amiri italic text-sm leading-relaxed"
+            style={{ color: "#4a4a4a", maxWidth: "300px" }}
+          >
+            <p className="mb-2">
+              "And cooperate in righteousness and piety."
+            </p>
+            <p style={{ fontSize: "var(--step--1)", opacity: 0.8 }}>
+              — Quran 5:2
+            </p>
+          </blockquote>
+        </div>
+
+        {/* Bottom section: Gradient + Islamic pattern overlay */}
         <div
-          className="absolute -top-1/4 -right-20 h-[600px] w-[600px] rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(94,234,212,0.08) 0%, transparent 65%)" }}
-        />
-        <div
-          className="absolute bottom-0 -left-32 h-[500px] w-[500px] rounded-full"
-          style={{ background: "radial-gradient(circle, rgba(212,176,106,0.05) 0%, transparent 65%)" }}
-        />
+          className="relative h-2/5 flex-shrink-0 overflow-hidden"
+          style={{
+            background: "linear-gradient(180deg, #e8dcc8 0%, #c9a574 100%)",
+          }}
+        >
+          {/* Islamic star pattern overlay — reuse from tv-display */}
+          <svg
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full"
+            viewBox="0 0 200 200"
+            preserveAspectRatio="xMidYMid slice"
+            style={{ opacity: 0.12 }}
+          >
+            <defs>
+              <pattern id="login-islamic-stars" x="0" y="0" width="50" height="50" patternUnits="userSpaceOnUse">
+                {/* 8-pointed star */}
+                <path d="M25 5 L30 20 L45 25 L30 30 L25 45 L20 30 L5 25 L20 20 Z" fill="#1a1a1a" />
+                {/* Inner diamond */}
+                <path d="M25 25 L35 25 L25 35 L15 25 Z" fill="#1a1a1a" />
+              </pattern>
+            </defs>
+            <rect width="200" height="200" fill="url(#login-islamic-stars)" />
+          </svg>
+        </div>
       </div>
 
-      {/* Dot grid texture */}
-      <div className="pointer-events-none fixed inset-0 dot-grid opacity-30" aria-hidden="true" />
-
-      {/* Card */}
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-        className="relative w-full max-w-[440px]"
-      >
-        <div
-          className="glass rounded-card-xl overflow-hidden"
-          style={{ borderColor: "rgba(94,234,212,0.12)" }}
+      {/* RIGHT PANEL — White background, login form */}
+      <div className="w-3/5 bg-white flex items-center justify-center px-12 overflow-y-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          className="w-full max-w-sm"
         >
-          {/* Top gradient accent line */}
-          <div
-            className="h-px w-full"
-            style={{
-              background:
-                "linear-gradient(90deg, transparent 0%, rgba(94,234,212,0.5) 30%, rgba(212,176,106,0.4) 70%, transparent 100%)",
-            }}
-            aria-hidden="true"
-          />
-
-          <div className="px-8 py-9">
-            {/* Brand lockup */}
-            <div className="mb-8 flex flex-col items-center text-center">
-              <div className="mb-3 flex items-center gap-3">
-                <div
-                  className="flex h-11 w-11 items-center justify-center rounded-icon font-sora text-xl font-black"
-                  style={{
-                    background: "linear-gradient(135deg, #5eead4 0%, #0d9488 100%)",
-                    color: "#06120f",
-                    boxShadow:
-                      "0 0 28px rgba(94,234,212,0.25), 0 4px 12px rgba(0,0,0,0.4)",
-                  }}
-                  aria-hidden="true"
-                >
-                  M
-                </div>
-                <span
-                  className="font-sora font-black heading-shimmer"
-                  style={{ fontSize: "var(--step-3)" }}
-                >
-                  Mubeen
-                </span>
-              </div>
-              <p className="kicker">Operator Portal</p>
-            </div>
-
-            <h1
-              className="mb-1 font-sora font-bold text-ink"
-              style={{ fontSize: "var(--step-2)" }}
+          {/* Tab switcher — Sign in / Create account */}
+          <div className="mb-10 flex items-center gap-2">
+            <button
+              type="button"
+              disabled
+              className="px-4 py-2 rounded-full font-medium transition-all duration-150"
+              style={{
+                fontSize: "var(--step--1)",
+                color: "#ffffff",
+                backgroundColor: "#2d8659",
+                cursor: "default",
+              }}
             >
               Sign in
-            </h1>
-            <p className="mb-7 text-step--1 text-ink-muted">
-              Welcome back. Enter your credentials to continue.
-            </p>
+            </button>
+            <Link
+              to="/signup"
+              className="px-4 py-2 rounded-full font-medium transition-colors duration-150"
+              style={{
+                fontSize: "var(--step--1)",
+                color: "#666666",
+                backgroundColor: "transparent",
+                border: "1px solid #e5e7eb",
+              }}
+            >
+              Create account
+            </Link>
+          </div>
 
-            <form onSubmit={(e) => { void handleSubmit(e); }} noValidate>
-              {/* Email */}
-              <div className="mb-5">
-                <label
-                  htmlFor="login-email"
-                  className="mb-1.5 block text-step--1 font-medium text-ink-dim"
-                >
-                  Email
-                </label>
-                <input
-                  id="login-email"
-                  type="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (emailError) setEmailError("");
-                    if (formError) setFormError("");
-                  }}
-                  placeholder="imam@masjid.com"
-                  className={
-                    inputBase +
-                    (emailError
-                      ? " border border-red-400/60 focus:border-red-400/80 focus:ring-red-400/20"
-                      : " border border-white/10 focus:border-mint/50 focus:ring-mint/20")
-                  }
-                  aria-invalid={emailError ? "true" : "false"}
-                  aria-describedby={emailError ? "login-email-error" : undefined}
-                />
-                <AnimatePresence>
-                  {emailError && (
-                    <span id="login-email-error">
-                      <FieldError message={emailError} />
-                    </span>
-                  )}
-                </AnimatePresence>
-              </div>
+          {/* Welcome heading */}
+          <h2
+            className="font-amiri font-bold mb-2"
+            style={{ fontSize: "var(--step-2)", color: "#1a1a1a" }}
+          >
+            Welcome back
+          </h2>
 
-              {/* Password */}
-              <div className="mb-6">
+          {/* Subheading */}
+          <p
+            className="mb-8 text-sm"
+            style={{ color: "#666666" }}
+          >
+            Sign in to your Mubeen account
+          </p>
+
+          {/* Form */}
+          <form onSubmit={(e) => { void handleSubmit(e); }} noValidate>
+            {/* Email field */}
+            <div className="mb-6">
+              <label
+                htmlFor="login-email"
+                className="block mb-2 font-medium"
+                style={{ fontSize: "var(--step--1)", color: "#1a1a1a" }}
+              >
+                Email
+              </label>
+              <input
+                id="login-email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (emailError) setEmailError("");
+                  if (formError) setFormError("");
+                }}
+                placeholder="you@example.com"
+                className="w-full px-4 py-3 rounded-lg border transition-colors duration-150 focus:outline-none"
+                style={{
+                  borderColor: emailError ? "#ef4444" : "#d1d5db",
+                  backgroundColor: "#ffffff",
+                  color: "#1a1a1a",
+                  fontSize: "var(--step--1)",
+                }}
+                aria-invalid={emailError ? "true" : "false"}
+                aria-describedby={emailError ? "login-email-error" : undefined}
+              />
+              <AnimatePresence>
+                {emailError && (
+                  <span id="login-email-error">
+                    <FieldError message={emailError} />
+                  </span>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Password field */}
+            <div className="mb-7">
+              <div className="flex items-center justify-between mb-2">
                 <label
                   htmlFor="login-password"
-                  className="mb-1.5 block text-step--1 font-medium text-ink-dim"
+                  className="block font-medium"
+                  style={{ fontSize: "var(--step--1)", color: "#1a1a1a" }}
                 >
                   Password
                 </label>
-                <div className="relative">
-                  <input
-                    id="login-password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      if (passwordError) setPasswordError("");
-                      if (formError) setFormError("");
-                    }}
-                    placeholder="Your password"
-                    className={
-                      inputBase +
-                      " pr-11" +
-                      (passwordError
-                        ? " border border-red-400/60 focus:border-red-400/80 focus:ring-red-400/20"
-                        : " border border-white/10 focus:border-mint/50 focus:ring-mint/20")
-                    }
-                    aria-invalid={passwordError ? "true" : "false"}
-                    aria-describedby={passwordError ? "login-password-error" : undefined}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => { setShowPassword((v) => !v); }}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink-dim transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-mint rounded-sm"
-                  >
-                    <EyeIcon open={showPassword} />
-                  </button>
-                </div>
-                <AnimatePresence>
-                  {passwordError && (
-                    <span id="login-password-error">
-                      <FieldError message={passwordError} />
-                    </span>
-                  )}
-                </AnimatePresence>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs font-medium transition-colors duration-150"
+                  style={{ color: "#2d8659" }}
+                >
+                  Forgot?
+                </Link>
               </div>
-
-              {/* Form-level error */}
+              <div className="relative">
+                <input
+                  id="login-password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (passwordError) setPasswordError("");
+                    if (formError) setFormError("");
+                  }}
+                  placeholder="Enter your password"
+                  className="w-full px-4 py-3 rounded-lg border transition-colors duration-150 focus:outline-none"
+                  style={{
+                    borderColor: passwordError ? "#ef4444" : "#d1d5db",
+                    backgroundColor: "#ffffff",
+                    color: "#1a1a1a",
+                    fontSize: "var(--step--1)",
+                    paddingRight: "2.5rem",
+                  }}
+                  aria-invalid={passwordError ? "true" : "false"}
+                  aria-describedby={passwordError ? "login-password-error" : undefined}
+                />
+                <button
+                  type="button"
+                  onClick={() => { setShowPassword((v) => !v); }}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors focus:outline-none"
+                >
+                  <EyeIcon open={showPassword} />
+                </button>
+              </div>
               <AnimatePresence>
-                {formError && (
-                  <motion.div
-                    role="alert"
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.18 }}
-                    className="mb-5 flex items-start gap-2.5 rounded-[12px] bg-red-400/10 border border-red-400/25 px-3.5 py-3"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-400"
-                      aria-hidden="true"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    <p className="text-[13px] text-red-300">{formError}</p>
-                  </motion.div>
+                {passwordError && (
+                  <span id="login-password-error">
+                    <FieldError message={passwordError} />
+                  </span>
                 )}
               </AnimatePresence>
+            </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary w-full justify-center py-3 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? (
-                  <>
-                    <svg
-                      className="h-4 w-4 animate-spin"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12" cy="12" r="10"
-                        stroke="currentColor" strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                      />
-                    </svg>
-                    Signing in…
-                  </>
-                ) : (
-                  "Sign in"
-                )}
-              </button>
-            </form>
+            {/* Form-level error */}
+            <AnimatePresence>
+              {formError && (
+                <motion.div
+                  role="alert"
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="mb-5 flex items-start gap-2.5 rounded-lg px-3.5 py-3"
+                  style={{
+                    backgroundColor: "rgba(239, 68, 68, 0.1)",
+                    border: "1px solid rgba(239, 68, 68, 0.3)",
+                  }}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    className="mt-0.5 h-4 w-4 flex-shrink-0"
+                    aria-hidden="true"
+                    style={{ color: "#ef4444" }}
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <p className="text-xs font-medium" style={{ color: "#ef4444" }}>{formError}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            <p className="mt-6 text-center text-step--1 text-ink-muted">
-              Don&apos;t have an account?{" "}
-              <Link
-                to="/signup"
-                className="font-semibold text-mint hover:text-mint-dim transition-colors duration-150 focus:outline-none focus-visible:underline"
+            {/* Keep me signed in — Checkbox */}
+            <div className="mb-7 flex items-center gap-2.5">
+              <input
+                id="login-keep-signed-in"
+                type="checkbox"
+                checked={keepSignedIn}
+                onChange={(e) => setKeepSignedIn(e.target.checked)}
+                className="w-4 h-4 rounded"
+                style={{
+                  borderColor: "#d1d5db",
+                  cursor: "pointer",
+                  accentColor: "#2d8659",
+                }}
+                aria-label="Keep me signed in"
+              />
+              <label
+                htmlFor="login-keep-signed-in"
+                className="text-sm font-medium transition-colors duration-150 cursor-pointer"
+                style={{ color: "#666666" }}
               >
-                Create one →
-              </Link>
-            </p>
+                Keep me signed in
+              </label>
+            </div>
+
+            {/* Sign In button — Dark green */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 rounded-lg font-semibold text-center text-white transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: "#2d8659",
+              }}
+              onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = "#1f5c3f")}
+              onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = "#2d8659")}
+            >
+              {loading ? (
+                <>
+                  <svg
+                    className="inline-block h-4 w-4 animate-spin mr-2"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12" cy="12" r="10"
+                      stroke="currentColor" strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
+                  </svg>
+                  Signing in…
+                </>
+              ) : (
+                "Sign In"
+              )}
+            </button>
+          </form>
+
+          {/* Divider */}
+          <div className="flex items-center my-6">
+            <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
+            <span className="px-3 text-xs" style={{ color: "#999999" }}>or continue with</span>
+            <div className="flex-1 h-px" style={{ backgroundColor: "#e5e7eb" }} />
           </div>
-        </div>
-      </motion.div>
+
+          {/* OAuth buttons (NOT included — not implemented in backend) */}
+
+          {/* Sign up link */}
+          <p className="text-center text-sm" style={{ color: "#666666" }}>
+            Don&apos;t have an account?{" "}
+            <Link
+              to="/signup"
+              className="font-semibold transition-colors duration-150 focus:outline-none focus-visible:underline"
+              style={{ color: "#2d8659" }}
+            >
+              Sign up
+            </Link>
+          </p>
+        </motion.div>
+      </div>
     </div>
   );
 }

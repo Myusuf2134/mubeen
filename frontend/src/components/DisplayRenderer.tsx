@@ -28,7 +28,7 @@ export function DisplayRenderer({ payload, interim, masjidName }: DisplayRendere
   // No payload at all
   if (!payload) {
     return (
-      <div className="text-center text-text-2 text-lg">
+      <div className="text-center" style={{ color: 'rgba(212, 165, 116, 0.7)', fontSize: '1rem' }}>
         Waiting for live captions...
       </div>
     );
@@ -38,20 +38,20 @@ export function DisplayRenderer({ payload, interim, masjidName }: DisplayRendere
   // Even if source="scripture", interim must NOT render as canonical
   if (interim) {
     return (
-      <div className="space-y-4 animate-pulse">
+      <div className="space-y-4">
         {/* Forming state label */}
-        <div className="text-text-2 text-sm font-medium tracking-widest uppercase opacity-60">
+        <div style={{ color: 'rgba(212, 165, 116, 0.6)', fontSize: '0.75rem', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'Sora, sans-serif' }}>
           Transcribing...
         </div>
 
         {/* Source text (muted, gray) */}
-        <div className="text-text-2 text-2xl leading-relaxed font-serif opacity-60">
+        <div className="caption-arabic" style={{ opacity: 0.75, fontSize: '1.75rem' }}>
           {payload.source_text}
         </div>
 
         {/* Optional: if there's already a provisional translation, show it gray */}
         {payload.translation && (
-          <div className="text-text-2 text-sm opacity-40 italic">
+          <div className="caption-english" style={{ opacity: 0.65 }}>
             {payload.translation}
           </div>
         )}
@@ -62,93 +62,51 @@ export function DisplayRenderer({ payload, interim, masjidName }: DisplayRendere
   // State 2: Final + source="scripture" (CONFIRMED match)
   // Canonical Arabic (Amiri) + Yusuf Ali translation + reference card
   // NEVER show "machine translation" label for scripture
-  if (!interim && payload.source === 'scripture') {
+  if (!interim && payload.source === 'scripture' && payload.decision_state === 'CONFIRMED') {
     return (
-      <div className="space-y-8">
-        {/* Reference card (surah:ayah + surah name) */}
+      <div className="space-y-6">
+        {/* Arabic Uthmani (canonical, never model output) */}
+        <div className="caption-arabic">
+          {payload.text}
+        </div>
+
+        {/* Yusuf Ali translation (beneath Arabic, white) */}
+        {payload.translation && (
+          <div className="caption-english">
+            {payload.translation}
+          </div>
+        )}
+
+        {/* Scripture reference citation */}
         {payload.ref_label && (
-          <div className="flex items-start justify-between gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-1 h-10 bg-gold rounded-full" />
-              <div>
-                <div className="text-gold font-bold text-lg tracking-wider uppercase">
-                  {payload.ref_label}
-                </div>
-                {payload.surah && payload.ayah && (
-                  <div className="text-text-2 text-xs opacity-60 mt-1">
-                    Surah {payload.surah}, Verse {payload.ayah}
-                  </div>
-                )}
-              </div>
-            </div>
-            {masjidName && (
-              <div className="text-text-2 text-xs opacity-50 uppercase tracking-widest whitespace-nowrap">
-                {masjidName}
-              </div>
+          <div className="scripture-citation">
+            {payload.ref_label}
+            {payload.surah && payload.ayah && (
+              <span className="ml-2">
+                • Surah {payload.surah}, Verse {payload.ayah}
+              </span>
             )}
           </div>
         )}
-
-        {/* Arabic Uthmani (canonical, never model output) — prominent, gold, right-aligned */}
-        <div className="text-right">
-          <div className="text-gold text-5xl leading-loose font-serif">
-            {payload.text}
-          </div>
-        </div>
-
-        {/* Yusuf Ali translation (beneath Arabic, silver/white) */}
-        {payload.translation && (
-          <div className="pt-6 border-t border-surface-bd">
-            <div className="text-text-0 text-2xl leading-relaxed">
-              {payload.translation}
-            </div>
-          </div>
-        )}
-
-        {/* Settle animation */}
-        <style>{`
-          @keyframes settle {
-            from {
-              opacity: 0.8;
-              filter: blur(0.5px);
-            }
-            to {
-              opacity: 1;
-              filter: blur(0);
-            }
-          }
-          .scripture-render {
-            animation: settle 0.6s ease-out forwards;
-          }
-        `}</style>
-        <div className="scripture-render" />
       </div>
     );
   }
 
   // State 3: Final + source="machine" (NEAR_MISS or NOT_SCRIPTURE)
   // Translation with PERSISTENT, non-dismissible "Machine translation" label
-  if (!interim && payload.source === 'machine') {
+  if (!interim && (payload.source === 'machine' || (payload.source === 'scripture' && payload.decision_state !== 'CONFIRMED'))) {
     return (
       <div className="space-y-6">
-        {/* Persistent "Machine translation" banner (non-dismissible) */}
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-mint/40 bg-mint/5">
-          <div className="w-2 h-2 bg-mint rounded-full animate-pulse" />
-          <span className="text-mint text-xs font-bold uppercase tracking-widest">
-            Machine Translation
-          </span>
-        </div>
-
         {/* Original Arabic (gray, smaller, for context) */}
         {payload.source_text && (
-          <div className="text-text-2 text-lg opacity-60 font-serif">
+          <div className="caption-arabic" style={{ opacity: 0.7, fontSize: '1.5rem' }}>
             {payload.source_text}
           </div>
         )}
 
         {/* Translated text (prominent, white/silver) */}
         {payload.text && (
-          <div className="text-text-0 text-3xl leading-relaxed">
+          <div className="caption-english">
             {payload.text}
           </div>
         )}
@@ -158,10 +116,12 @@ export function DisplayRenderer({ payload, interim, masjidName }: DisplayRendere
 
   // Fallback (should not reach here if payload is well-formed)
   return (
-    <div className="text-text-2 text-sm">
-      <div className="opacity-60">Unknown render state</div>
+    <div style={{ color: 'rgba(212, 165, 116, 0.6)', fontSize: '0.875rem' }}>
+      <div>Unknown render state</div>
       {payload.source_text && (
-        <div className="text-lg mt-4 opacity-40">{payload.source_text}</div>
+        <div style={{ fontSize: '1rem', marginTop: '1rem', opacity: 0.5 }}>
+          {payload.source_text}
+        </div>
       )}
     </div>
   );

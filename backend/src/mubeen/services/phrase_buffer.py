@@ -119,9 +119,26 @@ class PhraseBuffer:
         self._debounce_task = asyncio.create_task(self._coalesce_timer())
 
     async def _coalesce_timer(self) -> None:
-        """Wait for coalescing window, then emit (case A/B)."""
+        """Wait for coalescing window, then emit (case A/B).
+
+        For normal multi-word phrases: emit promptly after debounce (Case A/B design).
+        For very short fragments (single word): hold briefly to see if more arrives.
+        """
         try:
             await asyncio.sleep(self.coalesce_debounce_s)
+
+            # Check if this is a very short phrase that might need more context.
+            # Only apply targeted hold for single-word fragments, not for phrases with 2+ words.
+            text = "".join(self._buffer).strip()
+            word_count = len(text.split())
+
+            if word_count < 2 and self._buffer_start_ts is not None:
+                # Single-word fragment: hold briefly (500ms) to see if more speech arrives
+                # before emitting this alone. This prevents single-word flushes like "آمِن"
+                # while still being much faster than the full 2.0s min_window.
+                # Multi-word phrases (2+ words) skip this hold and emit promptly.
+                await asyncio.sleep(0.5)
+
             end_ts = time.time()
             await self._emit_phrase_atomic(end_ts=end_ts, on_boundary=True)
         except asyncio.CancelledError:

@@ -22,6 +22,14 @@ export default {
         "mint-dim": "rgb(var(--mint-dim-ch) / <alpha-value>)",
         "mint-deep":"rgb(var(--mint-deep-ch) / <alpha-value>)",
         gold:       "rgb(var(--gold-ch) / <alpha-value>)",
+        // Mubeen brand colors
+        "mubeen-dark": "#153D35",
+        "mubeen-green": "#285C50",
+        "mubeen-cream": "#F7F3E9",
+        "mubeen-warm": "#FFFDF8",
+        "mubeen-gold": "#C6A85A",
+        "mubeen-text": "#173A33",
+        "mubeen-muted": "#6E7D78",
       },
 
       // ── Typography ───────────────────────────────────────────────────────
