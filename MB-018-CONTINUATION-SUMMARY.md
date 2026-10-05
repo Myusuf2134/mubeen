@@ -1,6 +1,6 @@
 # MB-018 Continuation: Bug Fixes & Infrastructure Scaffolds
 
-**Date:** 2026-08-14 (Autonomous continuation while user away ~2 hours)  
+**Date:** 2026-08-14 
 **Baseline test results:** 271 passed, 14 failed (pre-existing failures unrelated to changes)  
 **Changes tested:** All new code passed written tests; no regression in existing tests related to changes.
 
